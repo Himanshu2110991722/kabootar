@@ -2,25 +2,19 @@ import { useState } from "react";
 import api from "../lib/api";
 import toast from "react-hot-toast";
 import { X, Package } from "lucide-react";
+import CityInput from "./CityInput";
 
 const ITEM_TYPES = ["documents", "electronics", "clothes", "others"];
 const ITEM_EMOJI = { documents: "📄", electronics: "📱", clothes: "👕", others: "📦" };
 
 export default function PostParcelModal({ onClose, onSuccess }) {
   const [form, setForm] = useState({
-    fromCity: "",
-    toCity: "",
-    weight: "",
-    itemType: "documents",
-    description: "",
+    fromCity: "", toCity: "", weight: "", itemType: "documents", description: "",
   });
-  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
 
-  const set = (k, v) => {
-    setForm(f => ({ ...f, [k]: v }));
-    setErrors(e => ({ ...e, [k]: undefined }));
-  };
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: undefined })); };
 
   const validate = () => {
     const e = {};
@@ -36,17 +30,12 @@ export default function PostParcelModal({ onClose, onSuccess }) {
     if (!validate()) return;
     setLoading(true);
     try {
-      const { data } = await api.post("/parcels", {
-        ...form,
-        weight: +form.weight,
-      });
-      toast.success("Parcel request posted!");
+      const { data } = await api.post("/parcels", { ...form, weight: +form.weight });
+      toast.success("Request posted!");
       onSuccess(data.parcel);
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to post request");
-    } finally {
-      setLoading(false);
-    }
+      toast.error(err.response?.data?.message || "Failed to post");
+    } finally { setLoading(false); }
   };
 
   return (
@@ -63,19 +52,17 @@ export default function PostParcelModal({ onClose, onSuccess }) {
         <div className="px-5 py-4 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <Field label="From City" error={errors.fromCity}>
-              <input className="input-field" placeholder="Delhi" value={form.fromCity}
-                onChange={e => set("fromCity", e.target.value)} />
+              <CityInput value={form.fromCity} onChange={v => set("fromCity", v)} placeholder="Delhi" />
             </Field>
             <Field label="To City" error={errors.toCity}>
-              <input className="input-field" placeholder="Mumbai" value={form.toCity}
-                onChange={e => set("toCity", e.target.value)} />
+              <CityInput value={form.toCity} onChange={v => set("toCity", v)} placeholder="Mumbai" />
             </Field>
           </div>
 
           <Field label="Item Type">
             <div className="flex gap-2 flex-wrap">
               {ITEM_TYPES.map(t => (
-                <button key={t} onClick={() => set("itemType", t)}
+                <button key={t} onClick={() => set("itemType", t)} type="button"
                   className={`px-3.5 py-1.5 rounded-xl text-sm font-medium border transition-all capitalize flex items-center gap-1.5 ${
                     form.itemType === t
                       ? "bg-blue-500 text-white border-blue-500"
@@ -94,15 +81,16 @@ export default function PostParcelModal({ onClose, onSuccess }) {
 
           <Field label="Description" error={errors.description}>
             <textarea className="input-field resize-none" rows={3}
-              placeholder="Describe your item (size, fragility, any special handling...)"
+              placeholder="Describe your item (size, fragility, any special handling)…"
               value={form.description} onChange={e => set("description", e.target.value)} />
           </Field>
         </div>
 
         <div className="px-5 pb-5 flex gap-3">
           <button onClick={onClose} className="btn-secondary flex-1">Cancel</button>
-          <button onClick={submit} disabled={loading} className="btn-primary flex-1" style={{background: "#3b82f6"}}>
-            {loading ? "Posting..." : "Post Request"}
+          <button onClick={submit} disabled={loading}
+            className="btn-primary flex-1" style={{ background: "#3b82f6" }}>
+            {loading ? "Posting…" : "Post Request"}
           </button>
         </div>
       </div>
