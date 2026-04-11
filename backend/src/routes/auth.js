@@ -58,7 +58,9 @@ router.post('/verify', async (req, res) => {
 
     if (!user) {
       if (!name) return res.status(400).json({ message: 'Name required for new users', newUser: true });
-      user = await User.create({ firebaseUid, name, phone });
+      // Google users may not have a phone number
+      const resolvedPhone = phone || `google_${firebaseUid.slice(0, 10)}`;
+      user = await User.create({ firebaseUid, name, phone: resolvedPhone });
     }
 
     const token = generateToken(user._id);
@@ -121,16 +123,42 @@ router.post('/rate/:userId', protect, async (req, res) => {
   }
 });
 
-module.exports = router;
-
-// PATCH /api/auth/me - Update own profile
+// PATCH /api/auth/me — update profile fields
 router.patch('/me', protect, async (req, res) => {
   try {
-    const { name } = req.body;
-    if (!name || !name.trim()) return res.status(400).json({ message: 'Name required' });
-    const user = await User.findByIdAndUpdate(req.user._id, { name: name.trim() }, { new: true });
+    const allowed = ['name', 'bio', 'city', 'frequentRoute'];
+    const updates = {};
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) updates[key] = req.body[key];
+    }
+    if (updates.name !== undefined && !String(updates.name).trim())
+      return res.status(400).json({ message: 'Name cannot be empty' });
+    if (updates.name) updates.name = updates.name.trim();
+    if (updates.bio) updates.bio = String(updates.bio).slice(0, 160);
+    if (updates.city) updates.city = updates.city.trim();
+
+    const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true }).select('-reviews');
     res.json({ user });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
+
+// POST /api/auth/me/image — store base64 or URL as profileImage
+router.post('/me/image', protect, async (req, res) => {
+  try {
+    const { imageUrl } = req.body;
+    if (!imageUrl) return res.status(400).json({ message: 'imageUrl required' });
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { profileImage: imageUrl },
+      { new: true }
+    ).select('-reviews');
+    res.json({ user });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+module.exports = router;
+
