@@ -1,23 +1,23 @@
-import { useState, useRef } from "react";
-import { auth } from "../lib/firebase";
+import { useState, useRef } from 'react';
+import { auth } from '../lib/firebase';
 import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
   GoogleAuthProvider,
   signInWithPopup,
-} from "firebase/auth";
-import { useAuth } from "../context/AuthContext";
-import { useNavigate } from "react-router-dom";
-import toast from "react-hot-toast";
-import { Phone, ArrowRight, ChevronLeft, Shield } from "lucide-react";
+} from 'firebase/auth';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate, useLocation } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { Phone, ArrowRight, ChevronLeft, Shield } from 'lucide-react';
 
-const STEPS = { HOME: "home", PHONE: "phone", OTP: "otp", NAME: "name" };
+const STEPS = { HOME: 'home', PHONE: 'phone', OTP: 'otp', NAME: 'name' };
 
 export default function LoginPage() {
   const [step, setStep] = useState(STEPS.HOME);
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
-  const [name, setName] = useState("");
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [confirmResult, setConfirmResult] = useState(null);
@@ -25,6 +25,16 @@ export default function LoginPage() {
   const otpRefs = useRef([]);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const redirectAfterLogin = (res) => {
+    if (res?.requiresProfileCompletion) {
+      navigate('/complete-profile', { replace: true });
+    } else {
+      const from = location.state?.from || '/';
+      navigate(from, { replace: true });
+    }
+  };
 
   // ── Google Sign-In ──────────────────────────────────────────────────────────
   const signInWithGoogle = async () => {
@@ -36,18 +46,17 @@ export default function LoginPage() {
       setIdToken(token);
       const res = await login(token);
       if (res.success) {
-        toast.success("Welcome! 🕊️");
-        navigate("/");
+        toast.success('Welcome! 🕊️');
+        redirectAfterLogin(res);
       } else if (res.newUser) {
-        // Pre-fill name from Google profile
-        setName(result.user.displayName || "");
+        setName(result.user.displayName || '');
         setStep(STEPS.NAME);
       } else {
         toast.error(res.message);
       }
     } catch (err) {
-      if (err.code !== "auth/popup-closed-by-user") {
-        toast.error("Google sign-in failed");
+      if (err.code !== 'auth/popup-closed-by-user') {
+        toast.error('Google sign-in failed');
       }
     } finally {
       setGoogleLoading(false);
@@ -58,15 +67,15 @@ export default function LoginPage() {
   const setupRecaptcha = () => {
     if (!window.recaptchaVerifier) {
       window.recaptchaVerifier = new RecaptchaVerifier(
-        auth, "recaptcha-container", { size: "invisible" }
+        auth, 'recaptcha-container', { size: 'invisible' }
       );
     }
   };
 
   const sendOtp = async () => {
-    const fullPhone = phone.startsWith("+") ? phone : `+91${phone}`;
-    if (fullPhone.replace(/\D/g, "").length < 10) {
-      toast.error("Enter a valid phone number"); return;
+    const fullPhone = phone.startsWith('+') ? phone : `+91${phone}`;
+    if (fullPhone.replace(/\D/g, '').length < 10) {
+      toast.error('Enter a valid phone number'); return;
     }
     setLoading(true);
     try {
@@ -74,42 +83,42 @@ export default function LoginPage() {
       const result = await signInWithPhoneNumber(auth, fullPhone, window.recaptchaVerifier);
       setConfirmResult(result);
       setStep(STEPS.OTP);
-      toast.success("OTP sent!");
+      toast.success('OTP sent!');
     } catch (err) {
-      toast.error(err.message || "Failed to send OTP");
+      toast.error(err.message || 'Failed to send OTP');
       window.recaptchaVerifier = null;
     } finally { setLoading(false); }
   };
 
   const verifyOtp = async () => {
-    const code = otp.join("");
-    if (code.length !== 6) { toast.error("Enter complete OTP"); return; }
+    const code = otp.join('');
+    if (code.length !== 6) { toast.error('Enter complete OTP'); return; }
     setLoading(true);
     try {
       const result = await confirmResult.confirm(code);
       const token = await result.user.getIdToken();
       setIdToken(token);
       const res = await login(token);
-      if (res.success) { toast.success("Welcome back!"); navigate("/"); }
+      if (res.success) { toast.success('Welcome back!'); redirectAfterLogin(res); }
       else if (res.newUser) setStep(STEPS.NAME);
       else toast.error(res.message);
-    } catch { toast.error("Invalid OTP"); }
+    } catch { toast.error('Invalid OTP'); }
     finally { setLoading(false); }
   };
 
   const submitName = async () => {
     if (!name.trim() || name.trim().length < 2) {
-      toast.error("Enter your full name"); return;
+      toast.error('Enter your full name'); return;
     }
     setLoading(true);
     const res = await login(idToken, name.trim());
     setLoading(false);
-    if (res.success) { toast.success("Welcome to Kabootar! 🕊️"); navigate("/"); }
+    if (res.success) { toast.success('Welcome to Kabutar! 🕊️'); redirectAfterLogin(res); }
     else toast.error(res.message);
   };
 
   const handleOtpChange = (val, idx) => {
-    const digit = val.replace(/\D/g, "").slice(-1);
+    const digit = val.replace(/\D/g, '').slice(-1);
     const next = [...otp];
     next[idx] = digit;
     setOtp(next);
@@ -117,7 +126,7 @@ export default function LoginPage() {
   };
 
   const handleOtpKey = (e, idx) => {
-    if (e.key === "Backspace" && !otp[idx] && idx > 0)
+    if (e.key === 'Backspace' && !otp[idx] && idx > 0)
       otpRefs.current[idx - 1]?.focus();
   };
 
@@ -126,7 +135,7 @@ export default function LoginPage() {
       {/* Hero */}
       <div className="bg-gradient-to-br from-orange-500 to-orange-600 px-6 pt-16 pb-12 text-white">
         <div className="text-5xl mb-3">🕊️</div>
-        <h1 className="text-3xl font-bold tracking-tight">kabootar</h1>
+        <h1 className="text-3xl font-bold tracking-tight">kabutar</h1>
         <p className="text-orange-100 mt-2 text-sm leading-relaxed">
           Send parcels with trusted travelers.<br />Save money. Go farther.
         </p>
@@ -134,36 +143,26 @@ export default function LoginPage() {
 
       <div className="flex-1 px-6 pt-8">
 
-        {/* ── HOME: choose auth method ───────────────────────────── */}
+        {/* ── HOME ─────────────────────────────────────────────── */}
         {step === STEPS.HOME && (
           <div className="animate-slide-up space-y-3">
             <h2 className="text-xl font-bold text-stone-900 mb-1">Get started</h2>
             <p className="text-stone-500 text-sm mb-6">Choose how you want to sign in</p>
 
-            {/* Google */}
             <button
               onClick={signInWithGoogle}
               disabled={googleLoading}
               className="w-full flex items-center justify-center gap-3 border border-stone-200 hover:border-stone-300 hover:bg-stone-50 rounded-xl py-3 transition-all font-semibold text-stone-700 text-sm active:scale-95"
             >
-              {googleLoading ? (
-                <Spinner />
-              ) : (
-                <>
-                  <GoogleIcon />
-                  Continue with Google
-                </>
-              )}
+              {googleLoading ? <Spinner /> : <><GoogleIcon />Continue with Google</>}
             </button>
 
-            {/* Divider */}
             <div className="flex items-center gap-3 py-1">
               <div className="flex-1 h-px bg-stone-100" />
               <span className="text-xs text-stone-400">or</span>
               <div className="flex-1 h-px bg-stone-100" />
             </div>
 
-            {/* Phone */}
             <button
               onClick={() => setStep(STEPS.PHONE)}
               className="w-full flex items-center justify-center gap-3 bg-orange-500 hover:bg-orange-600 rounded-xl py-3 transition-all font-semibold text-white text-sm active:scale-95"
@@ -186,8 +185,8 @@ export default function LoginPage() {
                 className="input-field flex-1"
                 placeholder="98765 43210"
                 value={phone}
-                onChange={e => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                onKeyDown={e => e.key === "Enter" && sendOtp()}
+                onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                onKeyDown={e => e.key === 'Enter' && sendOtp()}
                 type="tel"
                 inputMode="numeric"
                 autoFocus
@@ -238,7 +237,7 @@ export default function LoginPage() {
               placeholder="Full name"
               value={name}
               onChange={e => setName(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && submitName()}
+              onKeyDown={e => e.key === 'Enter' && submitName()}
               autoFocus
             />
             <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={submitName} disabled={loading}>

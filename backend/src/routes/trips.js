@@ -3,7 +3,7 @@ const router = express.Router();
 const Trip = require('../models/Trip');
 const { protect } = require('../middleware/auth');
 
-// GET /api/trips - List all active trips
+// GET /api/trips - List all active trips (public)
 router.get('/', async (req, res) => {
   try {
     const { from, to, date } = req.query;
@@ -19,7 +19,7 @@ router.get('/', async (req, res) => {
     }
 
     const trips = await Trip.find(filter)
-      .populate('userId', 'name phone rating totalRatings')
+      .populate('userId', 'name profileImage maskedPhone rating totalRatings kycStatus')
       .sort({ date: 1 })
       .limit(50);
 
@@ -42,7 +42,7 @@ router.get('/my', protect, async (req, res) => {
 // POST /api/trips - Create trip
 router.post('/', protect, async (req, res) => {
   try {
-    const { fromCity, toCity, date, transportMode, availableWeight, pricePerKg, notes } = req.body;
+    const { fromCity, toCity, date, transportMode, availableWeight, pricePerKg, notes, pickupStation, dropStation } = req.body;
 
     if (!fromCity || !toCity || !date || !transportMode || !availableWeight || pricePerKg === undefined) {
       return res.status(400).json({ message: 'All required fields must be provided' });
@@ -57,9 +57,11 @@ router.post('/', protect, async (req, res) => {
       availableWeight,
       pricePerKg,
       notes,
+      pickupStation: pickupStation || '',
+      dropStation: dropStation || '',
     });
 
-    await trip.populate('userId', 'name phone rating');
+    await trip.populate('userId', 'name profileImage maskedPhone rating kycStatus');
     res.status(201).json({ trip });
   } catch (err) {
     res.status(500).json({ message: err.message });

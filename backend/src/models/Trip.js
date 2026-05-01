@@ -15,6 +15,10 @@ const tripSchema = new mongoose.Schema(
     pricePerKg: { type: Number, required: true, min: 0 },
     status: { type: String, enum: ['active', 'completed', 'cancelled'], default: 'active' },
     notes: { type: String, default: '' },
+    pickupStation: { type: String, default: '' },
+    dropStation: { type: String, default: '' },
+    ticketUrl: { type: String, default: '' },
+    isVerified: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

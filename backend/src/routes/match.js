@@ -12,7 +12,6 @@ router.get('/parcel/:parcelId', protect, async (req, res) => {
 
     const { fromCity, toCity, weight } = parcel;
 
-    // Date window: ±3 days from today
     const now = new Date();
     const windowEnd = new Date();
     windowEnd.setDate(windowEnd.getDate() + 30);
@@ -24,7 +23,7 @@ router.get('/parcel/:parcelId', protect, async (req, res) => {
       date: { $gte: now, $lte: windowEnd },
       status: 'active',
     })
-      .populate('userId', 'name phone rating totalRatings createdAt')
+      .populate('userId', 'name profileImage maskedPhone rating totalRatings kycStatus tripsCompleted createdAt')
       .sort({ date: 1 })
       .limit(20);
 
@@ -40,12 +39,7 @@ router.get('/trip/:tripId', protect, async (req, res) => {
     const trip = await Trip.findById(req.params.tripId);
     if (!trip) return res.status(404).json({ message: 'Trip not found' });
 
-    const { fromCity, toCity, availableWeight, date } = trip;
-
-    const windowStart = new Date(date);
-    windowStart.setDate(windowStart.getDate() - 2);
-    const windowEnd = new Date(date);
-    windowEnd.setDate(windowEnd.getDate() + 2);
+    const { fromCity, toCity, availableWeight } = trip;
 
     const parcels = await Parcel.find({
       fromCity: { $regex: new RegExp(`^${fromCity}$`, 'i') },
@@ -53,7 +47,7 @@ router.get('/trip/:tripId', protect, async (req, res) => {
       weight: { $lte: availableWeight },
       status: 'open',
     })
-      .populate('userId', 'name phone rating totalRatings createdAt')
+      .populate('userId', 'name maskedPhone rating totalRatings kycStatus createdAt')
       .sort({ createdAt: -1 })
       .limit(20);
 

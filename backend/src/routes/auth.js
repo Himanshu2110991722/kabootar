@@ -28,7 +28,8 @@ const generateToken = (id) =>
 // POST /api/auth/verify
 // Verify Firebase ID token and create/login user
 router.post('/verify', async (req, res) => {
-  const { idToken, name } = req.body;
+  const body = req.body || {};
+  const { idToken, name } = body;
   if (!idToken) return res.status(400).json({ message: 'idToken required' });
 
   try {
@@ -64,7 +65,11 @@ router.post('/verify', async (req, res) => {
     }
 
     const token = generateToken(user._id);
-    res.json({ token, user });
+    res.json({
+      token,
+      user,
+      requiresProfileCompletion: !user.isProfileComplete,
+    });
   } catch (err) {
     console.error('Auth error:', err);
     res.status(401).json({ message: 'Authentication failed', error: err.message });
@@ -126,7 +131,7 @@ router.post('/rate/:userId', protect, async (req, res) => {
 // PATCH /api/auth/me — update profile fields
 router.patch('/me', protect, async (req, res) => {
   try {
-    const allowed = ['name', 'bio', 'city', 'frequentRoute'];
+    const allowed = ['name', 'bio', 'city', 'frequentRoute', 'profileImage'];
     const updates = {};
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];
@@ -137,6 +142,22 @@ router.patch('/me', protect, async (req, res) => {
     if (updates.bio) updates.bio = String(updates.bio).slice(0, 160);
     if (updates.city) updates.city = updates.city.trim();
 
+    if (req.body.phone !== undefined) {
+      const phoneRegex = /^\+91[6-9]\d{9}$/;
+      if (!phoneRegex.test(req.body.phone)) {
+        return res.status(400).json({ message: 'Invalid phone. Use format +91XXXXXXXXXX' });
+      }
+      const taken = await User.findOne({
+        phone: req.body.phone,
+        _id: { $ne: req.user._id },
+      });
+      if (taken) {
+        return res.status(409).json({ message: 'Phone number already registered to another account' });
+      }
+      updates.phone = req.body.phone;
+      updates.isPhoneVerified = false;
+    }
+
     const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true }).select('-reviews');
     res.json({ user });
   } catch (err) {
@@ -144,11 +165,19 @@ router.patch('/me', protect, async (req, res) => {
   }
 });
 
-// POST /api/auth/me/image — store base64 or URL as profileImage
-router.post('/me/image', protect, async (req, res) => {
+// POST /api/auth/me/image — upload profile photo (multer file → stored URL)
+// Also accepts legacy { imageUrl } JSON body for backward compat
+const { upload, getFileUrl } = require('../utils/upload');
+router.post('/me/image', protect, upload.single('image'), async (req, res) => {
   try {
-    const { imageUrl } = req.body;
-    if (!imageUrl) return res.status(400).json({ message: 'imageUrl required' });
+    let imageUrl;
+    if (req.file) {
+      imageUrl = getFileUrl(req, req.file.filename);
+    } else if (req.body.imageUrl) {
+      imageUrl = req.body.imageUrl; // legacy base64 fallback
+    } else {
+      return res.status(400).json({ message: 'Image file or imageUrl required' });
+    }
     const user = await User.findByIdAndUpdate(
       req.user._id,
       { profileImage: imageUrl },

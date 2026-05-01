@@ -22,7 +22,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('kabootar_user', JSON.stringify(data.user));
       setUser(data.user);
       connectSocket(data.user._id);
-      return { success: true, user: data.user };
+      return { success: true, user: data.user, requiresProfileCompletion: data.requiresProfileCompletion };
     } catch (err) {
       const msg = err.response?.data?.message || 'Login failed';
       const isNewUser = err.response?.data?.newUser;

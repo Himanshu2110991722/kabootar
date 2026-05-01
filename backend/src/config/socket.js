@@ -20,14 +20,24 @@ const setupSocket = (io) => {
 
     // Send message
     socket.on('send_message', async (data) => {
-      const { senderId, receiverId, text, roomId } = data;
+      const { senderId, receiverId, text, roomId, type, amount, imageUrl } = data;
       try {
-        const message = await Message.create({ senderId, receiverId, text });
-        io.to(roomId).emit('receive_message', {
-          _id: message._id,
+        const message = await Message.create({
           senderId,
           receiverId,
-          text,
+          text:     text || '',
+          type:     type || 'text',
+          amount:   amount || null,
+          imageUrl: imageUrl || null,
+        });
+        io.to(roomId).emit('receive_message', {
+          _id:       message._id,
+          senderId,
+          receiverId,
+          text:      message.text,
+          type:      message.type,
+          amount:    message.amount,
+          imageUrl:  message.imageUrl,
           timestamp: message.timestamp,
         });
       } catch (err) {

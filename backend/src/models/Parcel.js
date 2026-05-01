@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const parcelSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    travelerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    tripId: { type: mongoose.Schema.Types.ObjectId, ref: 'Trip', default: null },
     fromCity: { type: String, required: true, trim: true },
     toCity: { type: String, required: true, trim: true },
     weight: { type: Number, required: true, min: 0.1 },
@@ -14,11 +16,22 @@ const parcelSchema = new mongoose.Schema(
     description: { type: String, required: true, trim: true },
     status: {
       type: String,
-      enum: ['open', 'matched', 'in_transit', 'delivered'],
+      enum: ['open', 'matched', 'requested', 'accepted', 'picked', 'in_transit', 'delivered', 'cancelled'],
       default: 'open',
     },
-    matchedTripId: { type: mongoose.Schema.Types.ObjectId, ref: 'Trip', default: null },
     offeredPrice: { type: Number, default: null },
+    matchedTripId: { type: mongoose.Schema.Types.ObjectId, ref: 'Trip', default: null },
+    acceptedAt: { type: Date, default: null },
+    pickedAt: { type: Date, default: null },
+    deliveredAt: { type: Date, default: null },
+    pickupOtp: { type: String, default: null },
+    pickupOtpExpiry: { type: Date, default: null },
+    deliveryOtp: { type: String, default: null },
+    deliveryOtpExpiry: { type: Date, default: null },
+    pickupStation: { type: String, default: '' },
+    dropStation: { type: String, default: '' },
+    pickupPhotoUrl: { type: String, default: '' },
+    deliveryPhotoUrl: { type: String, default: '' },
   },
   { timestamps: true }
 );
