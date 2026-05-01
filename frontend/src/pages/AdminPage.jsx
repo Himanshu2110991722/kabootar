@@ -38,7 +38,10 @@ function PromoteForm({ onPromoted }) {
     if (!secret.trim()) return;
     setLoading(true);
     try {
-      await api.post('/admin/promote', { secret });
+      const { data } = await api.post('/admin/promote', { secret });
+      // Write updated user (role:'admin') to localStorage before reloading
+      // so the page guard reads the correct role on refresh
+      localStorage.setItem('kabootar_user', JSON.stringify(data.user));
       toast.success('You are now an admin!');
       onPromoted();
     } catch (err) {

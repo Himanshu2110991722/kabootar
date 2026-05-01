@@ -6,6 +6,7 @@ import { getSocket, getRoomId } from '../lib/socket';
 import { ChevronLeft, Send, Star, IndianRupee, Check, X, ImageIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import RatingModal from '../components/RatingModal';
+import KabutarLoader from '../components/KabutarLoader';
 import toast from 'react-hot-toast';
 
 export default function ChatPage() {
@@ -146,8 +147,8 @@ export default function ChatPage() {
   if (loading) return (
     <div className="flex flex-col h-screen">
       <div className="h-14 bg-white border-b border-stone-100 animate-pulse" />
-      <div className="flex-1 p-4 space-y-3">
-        {[1, 2, 3].map(i => <div key={i} className={`h-10 w-48 rounded-2xl bg-stone-100 animate-pulse ${i % 2 === 0 ? 'ml-auto' : ''}`} />)}
+      <div className="flex-1 flex items-center justify-center">
+        <KabutarLoader text="Opening chat…" />
       </div>
     </div>
   );

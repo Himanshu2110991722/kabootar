@@ -5,6 +5,7 @@ import PostTripModal from '../components/PostTripModal';
 import { Plus, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAuthGate } from '../hooks/useAuthGate';
+import KabutarLoader from '../components/KabutarLoader';
 
 export default function TripsPage() {
   const { user } = useAuth();
@@ -94,14 +95,7 @@ export default function TripsPage() {
 
       {/* List */}
       {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="card p-4 animate-pulse">
-              <div className="h-4 bg-stone-100 rounded w-3/4 mb-2" />
-              <div className="h-3 bg-stone-100 rounded w-1/2" />
-            </div>
-          ))}
-        </div>
+        <KabutarLoader text="Finding trips…" />
       ) : displayed.length === 0 ? (
         <div className="card p-8 text-center">
           <div className="text-3xl mb-2">✈️</div>

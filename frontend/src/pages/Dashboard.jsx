@@ -8,6 +8,7 @@ import ParcelCard from '../components/ParcelCard';
 import PostTripModal from '../components/PostTripModal';
 import PostParcelModal from '../components/PostParcelModal';
 import { Send, Package, ArrowRight, Star, X, Camera, Phone, FileText, ChevronRight } from 'lucide-react';
+import KabutarLoader from '../components/KabutarLoader';
 
 const SESSION_KEY = 'kabutar_nudge_dismissed';
 
@@ -235,16 +236,7 @@ export default function Dashboard() {
 }
 
 function SkeletonCards() {
-  return (
-    <div className="space-y-3">
-      {[1, 2].map(i => (
-        <div key={i} className="card p-4 animate-pulse">
-          <div className="h-4 bg-stone-100 rounded w-2/3 mb-2" />
-          <div className="h-3 bg-stone-100 rounded w-1/2" />
-        </div>
-      ))}
-    </div>
-  );
+  return <KabutarLoader size={40} text="Fetching…" />;
 }
 
 function Empty({ text }) {

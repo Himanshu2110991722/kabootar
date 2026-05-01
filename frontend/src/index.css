@@ -51,6 +51,25 @@
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Kabutar flying animation keyframes */
+  @keyframes birdFloat {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    30%       { transform: translateY(-10px) rotate(-4deg); }
+    70%       { transform: translateY(6px)  rotate(2deg); }
+  }
+  @keyframes wingUp {
+    0%, 100% { transform: rotate(0deg); }
+    50%      { transform: rotate(-38deg); }
+  }
+  @keyframes wingDown {
+    0%, 100% { transform: rotate(0deg); }
+    50%      { transform: rotate(38deg); }
+  }
+  @keyframes trailFade {
+    0%   { opacity: 0.6; transform: scaleX(1); }
+    100% { opacity: 0;   transform: scaleX(0); }
+  }
 }
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }
