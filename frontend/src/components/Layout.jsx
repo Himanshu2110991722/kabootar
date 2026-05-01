@@ -11,50 +11,68 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen flex flex-col max-w-lg mx-auto bg-stone-50 relative">
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-stone-100 px-4 py-3 flex items-center justify-between">
+
+      {/* Header — white with purple-tinted border (stone-100 = #ede9ff) */}
+      <header className="sticky top-0 z-40 bg-white/92 backdrop-blur-md border-b border-stone-100 px-4 py-3 flex items-center justify-between"
+              style={{ boxShadow: '0 2px 16px rgba(109,40,217,.06)' }}>
         <div className="flex items-center gap-2">
-          <span className="text-xl">🕊️</span>
-          <span className="font-bold text-lg tracking-tight text-stone-900">kabutar</span>
+          <span className="text-xl" style={{ animation: 'birdBob 3s ease-in-out infinite', display:'inline-block' }}>🕊️</span>
+          {/* Logo text with subtle gradient — matches landing page */}
+          <span className="font-bold text-lg tracking-tight"
+                style={{ background:'linear-gradient(135deg,#16142e,#6d28d9)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text' }}>
+            kabutar
+          </span>
         </div>
       </header>
+
+      <style>{`
+        @keyframes birdBob { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-3px);} }
+      `}</style>
 
       {/* Page content */}
       <main className="flex-1 pb-20 overflow-y-auto">
         <Outlet />
       </main>
 
-      {/* Bottom Nav */}
-      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg bg-white/95 backdrop-blur-md border-t border-stone-100 z-40">
+      {/* Bottom Nav — white with purple-tinted border */}
+      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg bg-white/95 backdrop-blur-md border-t border-stone-100 z-40"
+           style={{ boxShadow: '0 -2px 16px rgba(109,40,217,.06)' }}>
         <div className="flex justify-around items-center py-2">
+
           {/* Home — always public */}
           <NavLink
             to="/"
             end
             className={({ isActive }) =>
-              `flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-150 ${isActive ? 'text-orange-500' : 'text-stone-400 hover:text-stone-600'}`
+              `flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-150 ${
+                isActive ? 'text-orange-500' : 'text-stone-400 hover:text-stone-600'
+              }`
             }
           >
             <Home size={20} strokeWidth={1.8} />
             <span className="text-[10px] font-medium">Home</span>
           </NavLink>
 
-          {/* Trips — public */}
+          {/* Trips */}
           <NavLink
             to="/trips"
             className={({ isActive }) =>
-              `flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-150 ${isActive ? 'text-orange-500' : 'text-stone-400 hover:text-stone-600'}`
+              `flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-150 ${
+                isActive ? 'text-orange-500' : 'text-stone-400 hover:text-stone-600'
+              }`
             }
           >
             <Send size={20} strokeWidth={1.8} />
             <span className="text-[10px] font-medium">Trips</span>
           </NavLink>
 
-          {/* Parcels — public */}
+          {/* Parcels */}
           <NavLink
             to="/parcels"
             className={({ isActive }) =>
-              `flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-150 ${isActive ? 'text-orange-500' : 'text-stone-400 hover:text-stone-600'}`
+              `flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-150 ${
+                isActive ? 'text-orange-500' : 'text-stone-400 hover:text-stone-600'
+              }`
             }
           >
             <Package size={20} strokeWidth={1.8} />
@@ -74,7 +92,7 @@ export default function Layout() {
             <span className="text-[10px] font-medium">Chat</span>
           </button>
 
-          {/* Me / Login — private */}
+          {/* Me / Login */}
           {user ? (
             <button
               onClick={() => navigate('/profile')}

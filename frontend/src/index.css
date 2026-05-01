@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -8,49 +8,85 @@
   * { -webkit-tap-highlight-color: transparent; }
   html { scroll-behavior: smooth; }
   body {
+    /* stone-50 now = #f7f6ff (purple-tinted) — matches landing page background */
     @apply bg-stone-50 text-stone-900 antialiased;
     font-family: 'Sora', sans-serif;
   }
 }
 
 @layer components {
+  /* ── Buttons ─────────────────────────────── */
   .btn-primary {
-    @apply bg-orange-500 hover:bg-orange-600 active:scale-95 text-white font-semibold px-5 py-2.5 rounded-xl transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed text-sm;
+    @apply bg-orange-500 hover:bg-orange-600 active:scale-95 text-white font-semibold
+           px-5 py-2.5 rounded-xl transition-all duration-150
+           disabled:opacity-50 disabled:cursor-not-allowed text-sm;
+    box-shadow: 0 2px 12px rgba(249,115,22,.35);
   }
+  .btn-primary:hover {
+    box-shadow: 0 6px 20px rgba(249,115,22,.45);
+  }
+
+  /* Secondary — light purple-tinted surface (stone-100 = #ede9ff) */
   .btn-secondary {
-    @apply bg-stone-100 hover:bg-stone-200 active:scale-95 text-stone-700 font-semibold px-5 py-2.5 rounded-xl transition-all duration-150 text-sm;
+    @apply bg-stone-100 hover:bg-stone-200 active:scale-95 text-stone-700 font-semibold
+           px-5 py-2.5 rounded-xl transition-all duration-150 text-sm;
   }
+
+  /* Ghost — border, transparent bg */
   .btn-ghost {
-    @apply hover:bg-stone-100 text-stone-600 font-medium px-4 py-2 rounded-xl transition-all duration-150 text-sm;
+    @apply hover:bg-stone-100 text-stone-600 font-medium
+           px-4 py-2 rounded-xl transition-all duration-150 text-sm;
   }
+
+  /* ── Input ───────────────────────────────── */
   .input-field {
-    @apply w-full bg-white border border-stone-200 focus:border-orange-400 focus:ring-2 focus:ring-orange-100 rounded-xl px-4 py-3 text-sm text-stone-900 placeholder-stone-400 transition-all duration-150;
+    /* border-stone-200 = #d4d0e8, focus-border orange, ring purple-tinted */
+    @apply w-full bg-white border border-stone-200
+           focus:border-orange-400 focus:ring-2 focus:ring-orange-100
+           rounded-xl px-4 py-3 text-sm text-stone-900
+           placeholder-stone-400 transition-all duration-150;
   }
+
+  /* ── Card ────────────────────────────────── */
   .card {
+    /* border-stone-100 = #ede9ff — subtle purple border on white */
     @apply bg-white rounded-2xl border border-stone-100 shadow-sm hover:shadow-md transition-shadow duration-200;
   }
-  .badge { @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold; }
-  .badge-orange { @apply badge bg-orange-50 text-orange-600; }
-  .badge-green { @apply badge bg-emerald-50 text-emerald-600; }
-  .badge-blue { @apply badge bg-blue-50 text-blue-600; }
-  .badge-stone { @apply badge bg-stone-100 text-stone-600; }
-  .badge-amber { @apply badge bg-amber-50 text-amber-600; }
+
+  /* ── Badges ──────────────────────────────── */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold;
+  }
+  .badge-orange { @apply badge bg-orange-50  text-orange-600; }
+  .badge-green  { @apply badge bg-emerald-50 text-emerald-600; }
+  .badge-blue   { @apply badge bg-blue-50    text-blue-600; }
+  /* badge-stone uses the new stone-100 (#ede9ff) + stone-600 (#4a4668) */
+  .badge-stone  { @apply badge bg-stone-100  text-stone-600; }
+  .badge-amber  { @apply badge bg-amber-50   text-amber-600; }
+  /* purple badge to match landing accent */
+  .badge-violet { @apply badge bg-violet-50  text-violet-700; }
+
+  /* ── Modal ───────────────────────────────── */
   .modal-overlay {
-    @apply fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center animate-fade-in;
+    @apply fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50
+           flex items-end sm:items-center justify-center animate-fade-in;
   }
   .modal-content {
-    @apply bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg max-h-[92vh] overflow-y-auto animate-slide-up;
+    @apply bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg
+           max-h-[92vh] overflow-y-auto animate-slide-up;
+    border: 1px solid theme('colors.stone.100');
+    box-shadow: 0 24px 64px rgba(22,20,46,.18);
   }
 }
 
 @layer utilities {
-  .animate-fade-in { animation: fadeIn 0.25s ease-out; }
-  .animate-slide-up { animation: slideUp 0.3s ease-out; }
+  .animate-fade-in  { animation: fadeIn  0.25s ease-out; }
+  .animate-slide-up { animation: slideUp 0.3s  ease-out; }
   .animate-slide-down { animation: slideDown 0.2s ease-out; }
 
-  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-  @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-  @keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fadeIn    { from { opacity:0; } to { opacity:1; } }
+  @keyframes slideUp   { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes slideDown { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
 
   /* Kabutar flying animation keyframes */
   @keyframes birdFloat {
@@ -66,12 +102,10 @@
     0%, 100% { transform: rotate(0deg); }
     50%      { transform: rotate(38deg); }
   }
-  @keyframes trailFade {
-    0%   { opacity: 0.6; transform: scaleX(1); }
-    100% { opacity: 0;   transform: scaleX(0); }
-  }
 }
 
-::-webkit-scrollbar { width: 4px; height: 4px; }
+/* Purple-tinted scrollbar to match landing page */
+::-webkit-scrollbar       { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 99px; }
+::-webkit-scrollbar-thumb { background: #c4b5fd; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #8b5cf6; }
