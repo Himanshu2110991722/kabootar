@@ -63,7 +63,7 @@ export default function Layout() {
             }
           >
             <Send size={20} strokeWidth={1.8} />
-            <span className="text-[10px] font-medium">Trips</span>
+            <span className="text-[10px] font-medium">Travellers</span>
           </NavLink>
 
           {/* Parcels */}

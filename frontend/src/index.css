@@ -88,7 +88,32 @@
   @keyframes slideUp   { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
   @keyframes slideDown { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
 
-  /* Kabutar flying animation keyframes */
+  /* ── Skeleton shimmer ─────────────────────────────────────── */
+  @keyframes shimmer {
+    0%   { background-position: -200% center; }
+    100% { background-position:  200% center; }
+  }
+
+  /* ── Route line travelling glow ─────────────────────────── */
+  @keyframes routeSweep {
+    0%   { left: -40px; opacity: 0; }
+    15%  { opacity: 1; }
+    85%  { opacity: 1; }
+    100% { left: 100%;  opacity: 0; }
+  }
+
+  /* ── Staggered card entrance ────────────────────────────── */
+  @keyframes staggerIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Pull-to-refresh spinner rotation ───────────────────── */
+  @keyframes ptfSpin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* ── Kabutar flying animation keyframes ─────────────────── */
   @keyframes birdFloat {
     0%, 100% { transform: translateY(0px) rotate(0deg); }
     30%       { transform: translateY(-10px) rotate(-4deg); }
@@ -105,6 +130,27 @@
 }
 
 /* Purple-tinted scrollbar to match landing page */
+/* ── Skeleton shimmer utility (used by SkeletonCard.jsx) ─── */
+.skeleton-shimmer {
+  background: linear-gradient(90deg, #ede9ff 0%, #f7f6ff 40%, #ede9ff 80%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/* ── Route sweep glow (used by TripCard route dividers) ─── */
+.route-sweep-line {
+  position: relative;
+  overflow: hidden;
+}
+.route-sweep-line::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 40px;
+  background: linear-gradient(90deg, transparent, rgba(249,115,22,.5), transparent);
+  animation: routeSweep 2.2s ease-in-out infinite;
+}
+
 ::-webkit-scrollbar       { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #c4b5fd; border-radius: 99px; }

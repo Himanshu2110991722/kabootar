@@ -12,7 +12,10 @@
       "Bash(node --check src/config/socket.js)",
       "Bash(node --check src/middleware/admin.js)",
       "Bash(node --check src/routes/admin.js)",
-      "Bash(node --check src/routes/auth.js)"
+      "Bash(node --check src/routes/auth.js)",
+      "Bash(node --check src/routes/trips.js)",
+      "Bash(node --check src/models/Trip.js)",
+      "Bash(nslookup _mongodb._tcp.cluster0.4rysrji.mongodb.net)"
     ]
   }
 }

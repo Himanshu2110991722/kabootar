@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useAuthGate } from '../hooks/useAuthGate';
@@ -7,194 +7,259 @@ import TripCard from '../components/TripCard';
 import ParcelCard from '../components/ParcelCard';
 import PostTripModal from '../components/PostTripModal';
 import PostParcelModal from '../components/PostParcelModal';
-import { Send, Package, ArrowRight, Star, X, Camera, Phone, FileText, ChevronRight } from 'lucide-react';
-import KabutarLoader from '../components/KabutarLoader';
+import { TripCardSkeleton, ParcelCardSkeleton } from '../components/SkeletonCard';
+import { Send, Package, ArrowRight, AlertTriangle, ChevronRight } from 'lucide-react';
 
-const SESSION_KEY = 'kabutar_nudge_dismissed';
+// ── Animated counter — counts from 0 to target when element enters viewport ──
+function CountUp({ value, decimals = 0 }) {
+  const [display, setDisplay] = useState(0);
+  const triggered = useRef(false);
+  const ref = useRef(null);
 
-function getMissingItems(user) {
-  const items = [];
-  if (!user?.profileImage)
-    items.push({ icon: '📸', text: 'Profile photo', benefit: 'Get 3× more responses' });
-  if (!user?.phone || user?.phone?.startsWith('google_'))
-    items.push({ icon: '📱', text: 'Phone number', benefit: 'Unlock full trust score' });
-  if (!user?.bio?.trim())
-    items.push({ icon: '✍️', text: 'Short bio', benefit: 'Stand out from other travelers' });
-  return items;
+  useEffect(() => {
+    const target = parseFloat(value) || 0;
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && !triggered.current) {
+        triggered.current = true;
+        const steps = 28;
+        const interval = 600 / steps;
+        let step = 0;
+        const t = setInterval(() => {
+          step++;
+          setDisplay(target * (step / steps));
+          if (step >= steps) { setDisplay(target); clearInterval(t); }
+        }, interval);
+      }
+    }, { threshold: 0.6 });
+    if (ref.current) obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, [value]);
+
+  return (
+    <span ref={ref}>
+      {decimals > 0 ? display.toFixed(decimals) : Math.round(display)}
+    </span>
+  );
 }
 
-function ProfileNudge({ user, onDismiss }) {
-  const navigate = useNavigate();
-  const missing = getMissingItems(user);
-  if (!missing.length) return null;
+// ── helpers ──────────────────────────────────────────────────────────────────
+const getGreeting = () => {
+  const h = new Date().getHours();
+  if (h < 12) return 'morning';
+  if (h < 17) return 'afternoon';
+  return 'evening';
+};
 
+const calcPct = (user) => {
   const checks = [
     !!user?.name?.trim(),
     !!user?.phone && !user?.phone?.startsWith('google_'),
-    !!user?.isPhoneVerified,
     !!user?.profileImage,
-    !!user?.bio?.trim(),
+    !!user?.city?.trim(),
+    !!user?.isPhoneVerified || user?.kycStatus === 'verified',
   ];
-  const pct = Math.round((checks.filter(Boolean).length / 5) * 100);
+  return Math.round((checks.filter(Boolean).length / 5) * 100);
+};
 
-  return (
-    <div className="rounded-2xl overflow-hidden border border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50 animate-slide-up">
-      {/* Top bar */}
-      <div className="flex items-start justify-between px-4 pt-4 pb-2">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">🚀</span>
-          <div>
-            <p className="font-bold text-stone-900 text-sm">Boost your visibility!</p>
-            <p className="text-xs text-stone-500">Complete profile — {pct}% done</p>
-          </div>
-        </div>
-        <button
-          onClick={onDismiss}
-          className="text-stone-400 hover:text-stone-600 transition-colors -mt-0.5 -mr-0.5 p-1"
-          aria-label="Dismiss"
-        >
-          <X size={15} />
-        </button>
-      </div>
-
-      {/* Progress bar */}
-      <div className="px-4 pb-3">
-        <div className="h-1.5 bg-orange-100 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-orange-500 rounded-full transition-all duration-500"
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Missing items */}
-      <div className="px-4 pb-3 space-y-1.5">
-        {missing.slice(0, 2).map(item => (
-          <div key={item.text} className="flex items-center gap-2">
-            <span className="text-sm">{item.icon}</span>
-            <span className="text-xs text-stone-700 font-medium flex-1">{item.text}</span>
-            <span className="text-[11px] text-orange-500 font-semibold">{item.benefit}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* CTA */}
-      <button
-        onClick={() => { onDismiss(); navigate('/profile'); }}
-        className="w-full flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold py-3 transition-colors"
-      >
-        Complete Profile <ChevronRight size={13} />
-      </button>
-    </div>
-  );
-}
-
+// ── main component ────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const { user } = useAuth();
-  const navigate = useNavigate();
-  const authGate = useAuthGate();
-  const [recentTrips, setRecentTrips] = useState([]);
-  const [recentParcels, setRecentParcels] = useState([]);
-  const [loadingTrips, setLoadingTrips] = useState(true);
-  const [loadingParcels, setLoadingParcels] = useState(true);
-  const [showTripModal, setShowTripModal] = useState(false);
-  const [showParcelModal, setShowParcelModal] = useState(false);
-  const [nudgeDismissed, setNudgeDismissed] = useState(
-    () => !!sessionStorage.getItem(SESSION_KEY)
-  );
+  const navigate  = useNavigate();
+  const authGate  = useAuthGate();
 
+  // public feeds (sliced for display, kept full for route matching)
+  const [allTrips,     setAllTrips]     = useState([]);
+  const [allParcels,   setAllParcels]   = useState([]);
+  const [recentTrips,  setRecentTrips]  = useState([]);
+  const [recentParcels,setRecentParcels]= useState([]);
+  const [loadingTrips,  setLoadingTrips]  = useState(true);
+  const [loadingParcels,setLoadingParcels]= useState(true);
+
+  // user's own counts (for summary line)
+  const [myTrips,   setMyTrips]   = useState([]);
+  const [myParcels, setMyParcels] = useState([]);
+
+  const [showTripModal,   setShowTripModal]   = useState(false);
+  const [showParcelModal, setShowParcelModal] = useState(false);
+
+  // load public feeds on mount
   useEffect(() => {
-    api.get('/trips').then(r => setRecentTrips(r.data.trips.slice(0, 3))).finally(() => setLoadingTrips(false));
-    api.get('/parcels').then(r => setRecentParcels(r.data.parcels.slice(0, 3))).finally(() => setLoadingParcels(false));
+    api.get('/trips').then(r => {
+      setAllTrips(r.data.trips);
+      setRecentTrips(r.data.trips.slice(0, 3));
+    }).finally(() => setLoadingTrips(false));
+
+    api.get('/parcels').then(r => {
+      setAllParcels(r.data.parcels);
+      setRecentParcels(r.data.parcels.slice(0, 3));
+    }).finally(() => setLoadingParcels(false));
   }, []);
 
-  const dismissNudge = () => {
-    sessionStorage.setItem(SESSION_KEY, '1');
-    setNudgeDismissed(true);
-  };
+  // load user's own trips/parcels when logged in
+  useEffect(() => {
+    if (!user?._id) return;
+    api.get('/trips/my').then(r => setMyTrips(r.data.trips)).catch(() => {});
+    api.get('/parcels/my').then(r => setMyParcels(r.data.parcels)).catch(() => {});
+  }, [user?._id]);
 
-  const firstName = user?.name?.split(' ')[0] || 'there';
-  const showNudge = !!user && !nudgeDismissed && getMissingItems(user).length > 0;
+  // ── derived values ──────────────────────────────────────────────────────
+  const firstName         = user?.name?.split(' ')[0] || 'there';
+  const activeTripsCount  = myTrips.filter(t => t.status === 'active').length;
+  const pendingParcelsCount = myParcels.filter(p => ['open','requested'].includes(p.status)).length;
+  const pct = calcPct(user);
+
+  const routeFrom = user?.frequentRoute?.from?.toLowerCase();
+  const pendingParcelsOnRoute = routeFrom
+    ? allParcels.filter(p => p.fromCity?.toLowerCase() === routeFrom && ['open','requested'].includes(p.status)).length
+    : 0;
+  const activeTripsOnRoute = routeFrom
+    ? allTrips.filter(t => t.fromCity?.toLowerCase() === routeFrom).length
+    : 0;
+
+  const summaryLine = user
+    ? (activeTripsCount > 0 || pendingParcelsCount > 0
+        ? `${activeTripsCount} active trip${activeTripsCount !== 1 ? 's' : ''} · ${pendingParcelsCount} pending parcel${pendingParcelsCount !== 1 ? 's' : ''}`
+        : 'Ready to post your next trip?')
+    : 'Browse trips and find travellers';
 
   return (
-    <div className="px-4 py-5 space-y-5">
-      {/* Greeting */}
-      <div>
-        <p className="text-stone-500 text-sm">Good day 👋</p>
-        <h1 className="text-2xl font-bold text-stone-900 tracking-tight">Hey, {firstName}</h1>
+    <div className="px-4 py-5 space-y-4">
+
+      {/* ── Gradient hero banner ── */}
+      <div className="bg-gradient-to-br from-orange-500 to-orange-400 rounded-2xl px-5 py-4 text-white">
+        <p className="text-sm text-orange-100 font-medium">
+          Good {getGreeting()} 👋
+        </p>
+        <h1 className="text-2xl font-bold tracking-tight mt-0.5">
+          {user ? firstName : 'Welcome'}
+        </h1>
+        <p className="text-sm text-orange-100 mt-1">{summaryLine}</p>
+
+        {/* Achievement chips — only when logged in */}
+        {user && (
+          <div className="flex flex-wrap gap-2 mt-3">
+            <span className="bg-white/15 text-white text-xs font-semibold px-2.5 py-1 rounded-full"
+              style={{ animation: 'staggerIn 0.4s ease both', animationDelay: '0.1s' }}>
+              ⭐ <CountUp value={user.rating || 5} decimals={1} /> Rating
+            </span>
+            <span className="bg-white/15 text-white text-xs font-semibold px-2.5 py-1 rounded-full"
+              style={{ animation: 'staggerIn 0.4s ease both', animationDelay: '0.2s' }}>
+              📦 <CountUp value={user.tripsCompleted || 0} /> Trips done
+            </span>
+            {user.kycStatus === 'verified' && (
+              <span className="bg-white/15 text-white text-xs font-semibold px-2.5 py-1 rounded-full"
+                style={{ animation: 'staggerIn 0.4s ease both', animationDelay: '0.3s' }}>
+                ✓ Verified
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Profile nudge — shown once per session when profile is incomplete */}
-      {showNudge && (
-        <ProfileNudge user={user} onDismiss={dismissNudge} />
-      )}
-
-      {/* Stats row — only when logged in */}
-      {user && (
-        <div className="flex gap-2">
-          <div className="card flex-1 p-3 text-center">
-            <div className="text-lg font-bold text-orange-500">{user?.rating?.toFixed(1) || '5.0'}</div>
-            <div className="text-[11px] text-stone-500 flex items-center justify-center gap-0.5 mt-0.5">
-              <Star size={10} className="text-amber-400 fill-amber-400" /> Rating
+      {/* ── Profile completion bar (only when logged in + profile incomplete) ── */}
+      {user && !user.isProfileComplete && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle size={15} className="text-amber-500 shrink-0" />
+            <div>
+              <p className="text-xs font-semibold text-stone-800">Complete your profile to post trips</p>
+              <p className="text-[11px] text-amber-600 mt-0.5">{pct}% done</p>
             </div>
           </div>
-          <div className="card flex-1 p-3 text-center">
-            <div className="text-lg font-bold text-stone-800">{user?.totalRatings || 0}</div>
-            <div className="text-[11px] text-stone-500 mt-0.5">Reviews</div>
-          </div>
-          <div className="card flex-1 p-3 text-center">
-            <div className="text-lg font-bold text-emerald-500">
-              {user?.kycStatus === 'verified' ? '✓' : '–'}
-            </div>
-            <div className="text-[11px] text-stone-500 mt-0.5">Verified</div>
-          </div>
+          <button
+            onClick={() => navigate('/complete-profile')}
+            className="text-xs font-bold text-amber-600 hover:text-amber-700 flex items-center gap-0.5 shrink-0 ml-3"
+          >
+            Finish <ChevronRight size={13} />
+          </button>
         </div>
       )}
 
-      {/* Quick actions */}
+      {/* ── Quick actions ── */}
       <div className="grid grid-cols-2 gap-3">
+
+        {/* Post a Trip */}
         <button
           onClick={() => authGate(() => setShowTripModal(true))}
-          className="card p-4 text-left hover:border-orange-200 hover:shadow-orange-100 transition-all active:scale-95"
+          className="relative overflow-hidden rounded-2xl p-4 text-left active:scale-95 transition-all
+                     bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200"
+          style={{ minHeight: '110px' }}
         >
-          <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center mb-3">
-            <Send size={18} className="text-orange-500" />
+          <div className="flex items-start justify-between mb-3">
+            <div className="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center shrink-0">
+              <Send size={17} className="text-white" />
+            </div>
+            {pendingParcelsOnRoute > 0 && (
+              <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full leading-tight">
+                {pendingParcelsOnRoute} waiting
+              </span>
+            )}
           </div>
           <div className="font-semibold text-stone-900 text-sm">Post a Trip</div>
-          <div className="text-xs text-stone-400 mt-0.5">Earn by carrying</div>
+          <div className="text-xs text-stone-500 mt-0.5">Earn by carrying</div>
+          {/* Decorative circles */}
+          <svg className="absolute bottom-0 right-0 w-16 h-16 opacity-[0.08] text-orange-500 pointer-events-none"
+               viewBox="0 0 64 64" fill="currentColor">
+            <circle cx="52" cy="52" r="32"/>
+            <circle cx="30" cy="42" r="22"/>
+            <circle cx="10" cy="30" r="14"/>
+          </svg>
         </button>
+
+        {/* Send Parcel */}
         <button
           onClick={() => authGate(() => setShowParcelModal(true))}
-          className="card p-4 text-left hover:border-blue-200 hover:shadow-blue-100 transition-all active:scale-95"
+          className="relative overflow-hidden rounded-2xl p-4 text-left active:scale-95 transition-all
+                     bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200"
+          style={{ minHeight: '110px' }}
         >
-          <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center mb-3">
-            <Package size={18} className="text-blue-500" />
+          <div className="flex items-start justify-between mb-3">
+            <div className="w-9 h-9 rounded-xl bg-blue-500 flex items-center justify-center shrink-0">
+              <Package size={17} className="text-white" />
+            </div>
+            {activeTripsOnRoute > 0 && (
+              <span className="bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full leading-tight">
+                {activeTripsOnRoute} travellers
+              </span>
+            )}
           </div>
           <div className="font-semibold text-stone-900 text-sm">Send Parcel</div>
-          <div className="text-xs text-stone-400 mt-0.5">Find a traveler</div>
+          <div className="text-xs text-stone-500 mt-0.5">Find a traveller</div>
+          <svg className="absolute bottom-0 right-0 w-16 h-16 opacity-[0.08] text-blue-500 pointer-events-none"
+               viewBox="0 0 64 64" fill="currentColor">
+            <circle cx="52" cy="52" r="32"/>
+            <circle cx="30" cy="42" r="22"/>
+            <circle cx="10" cy="30" r="14"/>
+          </svg>
         </button>
       </div>
 
-      {/* Recent Trips */}
+      {/* ── Recent Travellers ── */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-stone-900">Recent Trips</h2>
+          <h2 className="font-bold text-stone-900">Recent Travellers</h2>
           <button onClick={() => navigate('/trips')} className="text-orange-500 text-xs font-semibold flex items-center gap-1">
             See all <ArrowRight size={12} />
           </button>
         </div>
         {loadingTrips ? (
-          <SkeletonCards />
+          <div className="space-y-2">
+            {[0,1,2].map(i => <TripCardSkeleton key={i} delay={i * 80} />)}
+          </div>
         ) : recentTrips.length === 0 ? (
           <Empty text="No trips posted yet" />
         ) : (
-          <div className="space-y-3">
-            {recentTrips.map(t => <TripCard key={t._id} trip={t} />)}
+          <div className="space-y-2">
+            {recentTrips.map((t, i) => (
+              <div key={t._id} style={{ animation: 'staggerIn 0.35s ease both', animationDelay: `${i * 60}ms` }}>
+                <TripCard trip={t} />
+              </div>
+            ))}
           </div>
         )}
       </section>
 
-      {/* Recent Parcels */}
+      {/* ── Open Parcel Requests ── */}
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-bold text-stone-900">Open Requests</h2>
@@ -203,12 +268,18 @@ export default function Dashboard() {
           </button>
         </div>
         {loadingParcels ? (
-          <SkeletonCards />
+          <div className="space-y-2">
+            {[0,1,2].map(i => <ParcelCardSkeleton key={i} delay={i * 80} />)}
+          </div>
         ) : recentParcels.length === 0 ? (
           <Empty text="No parcel requests yet" />
         ) : (
-          <div className="space-y-3">
-            {recentParcels.map(p => <ParcelCard key={p._id} parcel={p} />)}
+          <div className="space-y-2">
+            {recentParcels.map((p, i) => (
+              <div key={p._id} style={{ animation: 'staggerIn 0.35s ease both', animationDelay: `${i * 60}ms` }}>
+                <ParcelCard parcel={p} />
+              </div>
+            ))}
           </div>
         )}
       </section>
@@ -218,6 +289,7 @@ export default function Dashboard() {
           onClose={() => setShowTripModal(false)}
           onSuccess={trip => {
             setRecentTrips(prev => [trip, ...prev].slice(0, 3));
+            setAllTrips(prev => [trip, ...prev]);
             setShowTripModal(false);
           }}
         />
@@ -227,6 +299,7 @@ export default function Dashboard() {
           onClose={() => setShowParcelModal(false)}
           onSuccess={parcel => {
             setRecentParcels(prev => [parcel, ...prev].slice(0, 3));
+            setAllParcels(prev => [parcel, ...prev]);
             setShowParcelModal(false);
           }}
         />
@@ -235,12 +308,6 @@ export default function Dashboard() {
   );
 }
 
-function SkeletonCards() {
-  return <KabutarLoader size={40} text="Fetching…" />;
-}
-
 function Empty({ text }) {
-  return (
-    <div className="card p-6 text-center text-stone-400 text-sm">{text}</div>
-  );
+  return <div className="card p-6 text-center text-stone-400 text-sm">{text}</div>;
 }

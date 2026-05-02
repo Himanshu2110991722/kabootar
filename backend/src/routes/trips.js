@@ -9,17 +9,22 @@ router.get('/', async (req, res) => {
     const { from, to, date } = req.query;
     const filter = { status: 'active' };
 
+    // Always hide past trips from the public listing
+    const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+
     if (from) filter.fromCity = { $regex: new RegExp(from, 'i') };
-    if (to) filter.toCity = { $regex: new RegExp(to, 'i') };
+    if (to)   filter.toCity   = { $regex: new RegExp(to,   'i') };
     if (date) {
-      const d = new Date(date);
-      const next = new Date(date);
-      next.setDate(next.getDate() + 1);
-      filter.date = { $gte: d, $lt: next };
+      const d    = new Date(date);
+      const next = new Date(date); next.setDate(next.getDate() + 1);
+      // If searching a past date, return nothing (trips are already gone)
+      filter.date = { $gte: d < startOfToday ? startOfToday : d, $lt: next };
+    } else {
+      filter.date = { $gte: startOfToday };
     }
 
     const trips = await Trip.find(filter)
-      .populate('userId', 'name profileImage maskedPhone rating totalRatings kycStatus')
+      .populate('userId', 'name profileImage maskedPhone rating totalRatings kycStatus tripsCompleted city createdAt')
       .sort({ date: 1 })
       .limit(50);
 
@@ -29,10 +34,10 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/trips/my - My trips
+// GET /api/trips/my - My trips (all, including past — used for travel history)
 router.get('/my', protect, async (req, res) => {
   try {
-    const trips = await Trip.find({ userId: req.user._id }).sort({ createdAt: -1 });
+    const trips = await Trip.find({ userId: req.user._id }).sort({ date: -1 });
     res.json({ trips });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -42,7 +47,7 @@ router.get('/my', protect, async (req, res) => {
 // POST /api/trips - Create trip
 router.post('/', protect, async (req, res) => {
   try {
-    const { fromCity, toCity, date, transportMode, availableWeight, pricePerKg, notes, pickupStation, dropStation } = req.body;
+    const { fromCity, toCity, date, transportMode, availableWeight, pricePerKg, notes, pickupStation, dropStation, departureTime, arrivalTime } = req.body;
 
     if (!fromCity || !toCity || !date || !transportMode || !availableWeight || pricePerKg === undefined) {
       return res.status(400).json({ message: 'All required fields must be provided' });
@@ -57,11 +62,13 @@ router.post('/', protect, async (req, res) => {
       availableWeight,
       pricePerKg,
       notes,
-      pickupStation: pickupStation || '',
-      dropStation: dropStation || '',
+      pickupStation:  pickupStation  || '',
+      dropStation:    dropStation    || '',
+      departureTime:  departureTime  || '',
+      arrivalTime:    arrivalTime    || '',
     });
 
-    await trip.populate('userId', 'name profileImage maskedPhone rating kycStatus');
+    await trip.populate('userId', 'name profileImage maskedPhone rating kycStatus tripsCompleted city');
     res.status(201).json({ trip });
   } catch (err) {
     res.status(500).json({ message: err.message });

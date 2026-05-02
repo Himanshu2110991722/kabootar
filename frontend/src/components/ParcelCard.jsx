@@ -93,15 +93,19 @@ https://app.kabutar.in`;
           <div className="flex items-center gap-2">
             <UserAvatar user={sender} />
             <div>
-              <div className="flex items-center gap-1">
-                <span className="text-xs font-semibold text-stone-700">{sender.name}</span>
-                {isVerified && <CheckCircle size={11} className="text-emerald-500 fill-emerald-500" title="KYC Verified" />}
-              </div>
-              <div className="flex items-center gap-0.5">
-                <Star size={9} className="text-amber-400 fill-amber-400" />
-                <span className="text-[11px] text-stone-400">{sender.rating?.toFixed(1)}</span>
-                {sender.maskedPhone && (
-                  <span className="text-[11px] text-stone-300 ml-1">{sender.maskedPhone}</span>
+              <span className="text-xs font-semibold text-stone-700 block">{sender.name}</span>
+              <div className="flex items-center gap-1 flex-wrap">
+                <div className="flex items-center gap-0.5">
+                  <Star size={9} className="text-amber-400 fill-amber-400" />
+                  <span className="text-[11px] text-stone-400">{sender.rating?.toFixed(1)}</span>
+                  {sender.maskedPhone && (
+                    <span className="text-[11px] text-stone-300 ml-1">{sender.maskedPhone}</span>
+                  )}
+                </div>
+                {isVerified && (
+                  <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5">
+                    <CheckCircle size={9} /> KYC Verified
+                  </span>
                 )}
               </div>
             </div>

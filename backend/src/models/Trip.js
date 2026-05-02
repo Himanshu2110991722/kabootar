@@ -14,7 +14,9 @@ const tripSchema = new mongoose.Schema(
     availableWeight: { type: Number, required: true, min: 0.1 },
     pricePerKg: { type: Number, required: true, min: 0 },
     status: { type: String, enum: ['active', 'completed', 'cancelled'], default: 'active' },
-    notes: { type: String, default: '' },
+    notes:         { type: String, default: '' },
+    departureTime: { type: String, default: '' }, // "HH:MM" 24-hour, optional
+    arrivalTime:   { type: String, default: '' }, // expected arrival "HH:MM", optional
     pickupStation: { type: String, default: '' },
     dropStation: { type: String, default: '' },
     ticketUrl: { type: String, default: '' },
