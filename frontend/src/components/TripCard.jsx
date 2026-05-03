@@ -3,13 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { format } from 'date-fns';
-import { MapPin, Calendar, Weight, IndianRupee, Trash2, MessageCircle, Star,
-         Train, Plane, Bus, Car, CheckCircle, Package, ChevronRight, Clock, Edit2 } from 'lucide-react';
+import { MapPin, Trash2, MessageCircle, Star,
+         Train, Plane, Bus, Car, CheckCircle, ChevronRight, Clock, Edit2 } from 'lucide-react';
 import TravelerProfileModal from './TravelerProfileModal';
 
 const TRANSPORT_ICONS  = { train: Train, flight: Plane, bus: Bus, car: Car };
-const TRANSPORT_LABELS = { train: 'Train', flight: 'Flight', bus: 'Bus', car: 'Car' };
 const TRANSPORT_EMOJI  = { train: '🚂', flight: '✈️', bus: '🚌', car: '🚗' };
+const TRANSPORT_LABELS = { train: 'Train', flight: 'Flight', bus: 'Bus', car: 'Car' };
 
 const fmtTime = (t) => {
   if (!t) return '';
@@ -40,8 +40,7 @@ function Avatar({ user }) {
   );
 }
 
-// isPast: when true card is muted read-only (travel history view)
-export default function TripCard({ trip, showDelete, onDelete, onEdit, isPast = false }) {
+export default function TripCard({ trip, showDelete, onDelete, onEdit, onMarkFull, isPast = false }) {
   const { user }   = useAuth();
   const navigate   = useNavigate();
   const authGate   = useAuthGate();
@@ -52,25 +51,9 @@ export default function TripCard({ trip, showDelete, onDelete, onEdit, isPast = 
   const isOwn      = traveler?._id === user?._id || trip.userId === user?._id;
   const isVerified = traveler?.kycStatus === 'verified';
 
-  const handleShare = (e) => {
-    e.stopPropagation();
-    const emoji   = TRANSPORT_EMOJI[trip.transportMode] || '🚗';
-    const date    = format(new Date(trip.date), 'dd MMM');
-    const station = trip.pickupStation ? `📍 ${trip.pickupStation}\n` : '';
-    const rating  = traveler?.rating ? `⭐ ${traveler.rating.toFixed(1)}` : '';
-    shareToWA(
-`🕊️ *Kabutar* — Send parcel with a traveler!
-
-${trip.fromCity} → ${trip.toCity}
-${station}📅 ${date} · ${emoji} ${TRANSPORT_LABELS[trip.transportMode] || ''}
-⚖️ ${trip.availableWeight} kg · 💰 ₹${trip.pricePerKg}/kg${rating ? `\n${rating}` : ''}
-
-Book a parcel spot 👇
-https://app.kabutar.in`
-    );
-  };
-
-  // Duration between departure and arrival
+  // Departure → arrival string
+  const dep = fmtTime(trip.departureTime);
+  const arr = fmtTime(trip.arrivalTime);
   let duration = '';
   if (trip.departureTime && trip.arrivalTime) {
     const [dh, dm] = trip.departureTime.split(':').map(Number);
@@ -82,119 +65,139 @@ https://app.kabutar.in`
     }
   }
 
+  const handleShare = (e) => {
+    e.stopPropagation();
+    shareToWA(
+`🕊️ *Kabutar* — Traveller available for your parcel!
+
+${trip.fromCity} → ${trip.toCity}
+📅 ${format(new Date(trip.date), 'dd MMM yyyy')} · ${TRANSPORT_EMOJI[trip.transportMode]} ${TRANSPORT_LABELS[trip.transportMode]}
+Can carry up to ${trip.availableWeight} kg · ₹${trip.pricePerKg}/kg${dep ? `\n🕐 Departs ${dep}` : ''}${arr ? ` · Arrives ${arr}` : ''}
+${trip.pickupStation ? `📍 ${trip.pickupStation}` : ''}
+${traveler?.rating ? `⭐ ${traveler.rating.toFixed(1)} rated traveller` : ''}
+
+Book a parcel spot 👇
+https://app.kabutar.in`
+    );
+  };
+
   return (
     <>
-      <div className={`card p-3 animate-fade-in ${isPast ? 'opacity-70' : ''}`}>
+      <div className={`card p-3.5 animate-fade-in ${isPast ? 'opacity-60' : ''}`}>
 
-        {/* ── Row 1: Route + WA share (inline, no extra row) ── */}
-        <div className="flex items-center gap-1.5 mb-2">
-          <MapPin size={11} className="text-orange-500 shrink-0" />
-          <span className="font-semibold text-stone-900 text-sm truncate">{trip.fromCity}</span>
-          {/* Route dividers with travelling glow animation */}
-          <div className="flex items-center gap-0.5 text-stone-400 shrink-0">
-            <div className="h-px w-5 route-sweep-line bg-stone-200" />
-            <Icon size={12} />
-            <div className="h-px w-5 route-sweep-line bg-stone-200" style={{ '--sweep-delay': '1.1s' }} />
-          </div>
-          <span className="font-semibold text-stone-900 text-sm truncate">{trip.toCity}</span>
-          <MapPin size={11} className="text-emerald-500 shrink-0" />
-          {isPast && <span className="ml-auto badge-stone text-[10px] shrink-0">Past</span>}
-          {/* WA share inline — no extra row */}
+        {/* ── Row 1: Role label + date + transport + WA ── */}
+        <div className="flex items-center gap-1.5 mb-2.5">
+          {isOwn
+            ? <span className="text-[10px] font-bold uppercase tracking-wide bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full shrink-0">Your Trip</span>
+            : <span className="text-[10px] font-bold uppercase tracking-wide bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full shrink-0">
+                {TRANSPORT_EMOJI[trip.transportMode]} Traveller
+              </span>
+          }
+          <span className="text-[11px] text-stone-500 font-medium shrink-0">
+            {format(new Date(trip.date), 'dd MMM yyyy')}
+          </span>
+          <span className="text-[10px] text-stone-400 shrink-0">· {TRANSPORT_LABELS[trip.transportMode]}</span>
+          {isPast && <span className="ml-auto text-[10px] bg-stone-100 text-stone-400 px-2 py-0.5 rounded-full font-semibold shrink-0">Past</span>}
           {!isPast && (
-            <button
-              onClick={handleShare}
-              title="Share on WhatsApp"
-              className="ml-auto shrink-0 w-6 h-6 rounded-lg bg-green-50 flex items-center justify-center text-green-600 hover:bg-green-100 active:scale-95 transition-all"
-            >
+            <button onClick={handleShare} title="Share on WhatsApp"
+              className="ml-auto shrink-0 w-6 h-6 rounded-lg bg-green-50 flex items-center justify-center text-green-600 hover:bg-green-100 active:scale-95 transition-all">
               <WAIcon />
             </button>
           )}
         </div>
 
-        {/* Station (if set) — compact single line */}
-        {trip.pickupStation && (
-          <div className="text-[10px] text-stone-400 mb-1.5 truncate">📍 {trip.pickupStation}</div>
-        )}
-
-        {/* ── Row 2: Meta badges ── */}
-        <div className="flex gap-1.5 flex-wrap mb-2">
-          <span className="badge-stone text-[10px]"><Calendar size={9} />{format(new Date(trip.date), 'dd MMM yy')}</span>
-          <span className="badge-orange text-[10px]"><Weight size={9} />{trip.availableWeight} kg</span>
-          <span className="badge-green text-[10px]"><IndianRupee size={9} />{trip.pricePerKg}/kg</span>
-          <span className="badge-blue text-[10px]"><Icon size={9} />{TRANSPORT_LABELS[trip.transportMode]}</span>
+        {/* ── Row 2: Route — the most important info ── */}
+        <div className="flex items-center gap-1.5 mb-1">
+          <MapPin size={12} className="text-orange-500 shrink-0" />
+          <span className="font-bold text-stone-900 text-sm truncate">{trip.fromCity}</span>
+          <div className="flex items-center gap-0.5 text-stone-300 shrink-0">
+            <div className="h-px w-6 route-sweep-line bg-stone-200" />
+            <Icon size={13} className="text-stone-400" />
+            <div className="h-px w-6 route-sweep-line bg-stone-200" />
+          </div>
+          <span className="font-bold text-stone-900 text-sm truncate">{trip.toCity}</span>
+          <MapPin size={12} className="text-emerald-500 shrink-0" />
         </div>
 
-        {/* ── Row 3: Time (if set) — inline compact ── */}
-        {(trip.departureTime || trip.arrivalTime) && (
-          <div className="flex items-center gap-1 text-[11px] text-stone-500 mb-2">
-            <Clock size={10} className="text-stone-400 shrink-0" />
-            {trip.departureTime && <span className="font-medium">{fmtTime(trip.departureTime)}</span>}
-            {trip.departureTime && trip.arrivalTime && <span className="text-stone-300">→</span>}
-            {trip.arrivalTime && <span>{fmtTime(trip.arrivalTime)}</span>}
-            {duration && <span className="text-stone-300 ml-1">· {duration}</span>}
+        {/* Station */}
+        {trip.pickupStation && (
+          <div className="text-[10px] text-stone-400 ml-4 mb-1.5 truncate">📍 {trip.pickupStation}</div>
+        )}
+
+        {/* ── Row 3: Departure → Arrival (if set) ── */}
+        {(dep || arr) && (
+          <div className="flex items-center gap-1 text-[11px] text-stone-600 mb-1.5">
+            <Clock size={10} className="text-orange-400 shrink-0" />
+            {dep && <span className="font-medium">Departs {dep}</span>}
+            {dep && arr && <span className="text-stone-300 mx-0.5">·</span>}
+            {arr && <span className="text-stone-500">Arrives {arr}</span>}
+            {duration && <span className="text-stone-400 ml-1">({duration})</span>}
           </div>
         )}
 
-        {/* ── Row 4: Traveler + all actions (single row, no extra row) ── */}
-        {traveler && typeof traveler === 'object' && (
-          <div className="flex items-center gap-2 pt-2 border-t border-stone-100">
+        {/* ── Row 4: Capacity & rate — human-readable ── */}
+        <div className="text-[11px] text-stone-600 mb-2.5">
+          <span className="font-medium text-stone-700">Can carry up to {trip.availableWeight} kg</span>
+          <span className="text-stone-400 mx-1">·</span>
+          <span>Charges ₹{trip.pricePerKg}/kg</span>
+        </div>
 
-            {/* Left: tappable profile area */}
+        {/* ── Row 5: Traveller profile + actions ── */}
+        {traveler && typeof traveler === 'object' && (
+          <div className="flex items-center gap-2 pt-2.5 border-t border-stone-100">
             {!isOwn ? (
               <button
                 onClick={() => !isPast && setShowProfile(true)}
-                className="flex items-center gap-1.5 flex-1 min-w-0 text-left"
+                className="flex items-center gap-2 flex-1 min-w-0 text-left"
               >
                 <Avatar user={traveler} />
                 <div className="min-w-0 flex-1">
-                  <span className="text-xs font-semibold text-stone-800 truncate block">{traveler.name}</span>
-                  <div className="flex items-center gap-1.5 text-[10px] text-stone-400 flex-wrap">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <span className="text-xs font-semibold text-stone-800 truncate">{traveler.name}</span>
+                    {isVerified && <CheckCircle size={10} className="text-emerald-500 fill-emerald-500 shrink-0" />}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px] text-stone-400 flex-wrap mt-0.5">
                     <span className="flex items-center gap-0.5">
                       <Star size={9} className="text-amber-400 fill-amber-400" />
                       {traveler.rating?.toFixed(1)}
                       {traveler.totalRatings > 0 && ` (${traveler.totalRatings})`}
                     </span>
-                    {traveler.city && <span>· 📍{traveler.city}</span>}
-                    {traveler.tripsCompleted > 0 && <span>· {traveler.tripsCompleted} trips</span>}
-                    {isVerified && (
-                      <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5">
-                        <CheckCircle size={9} /> KYC Verified
-                      </span>
-                    )}
+                    {traveler.city && <span>· 📍 {traveler.city}</span>}
+                    {traveler.tripsCompleted > 0 && <span>· {traveler.tripsCompleted} trips done</span>}
                   </div>
                 </div>
                 {!isPast && <ChevronRight size={12} className="text-orange-400 shrink-0" />}
               </button>
             ) : (
-              <div className="flex-1 min-w-0">
-                <span className="text-xs text-stone-400 font-medium">Your trip</span>
-              </div>
+              <span className="flex-1 text-xs text-stone-400 font-medium">Posted by you</span>
             )}
 
-            {/* Right: action buttons — all inline */}
             <div className="flex items-center gap-1.5 shrink-0">
-              {onEdit && !isPast && (
+              {/* Mark Full — traveller signals no more space, trip moves to history */}
+              {onMarkFull && isOwn && !isPast && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); onEdit(); }}
-                  className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 flex items-center gap-1.5 text-xs font-semibold text-stone-600 hover:bg-stone-100 transition-colors"
+                  onClick={(e) => { e.stopPropagation(); onMarkFull(); }}
+                  title="Mark parcel space as full — removes from public listing"
+                  className="bg-emerald-50 border border-emerald-200 rounded-xl px-2.5 py-1.5 flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors"
                 >
-                  <Edit2 size={13} /> Edit
+                  ✓ Mark Full
+                </button>
+              )}
+              {onEdit && !isPast && (
+                <button onClick={(e) => { e.stopPropagation(); onEdit(); }}
+                  className="bg-stone-50 border border-stone-200 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-xs font-semibold text-stone-600 hover:bg-stone-100 transition-colors">
+                  <Edit2 size={12} /> Edit
                 </button>
               )}
               {showDelete && !isPast && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                  title="Delete trip"
-                  className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center text-red-400 hover:bg-red-100 transition-colors"
-                >
+                <button onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                  className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center text-red-400 hover:bg-red-100 transition-colors">
                   <Trash2 size={13} />
                 </button>
               )}
               {!isOwn && !isPast && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); authGate(() => navigate(`/chat/${traveler._id}`)); }}
-                  className="btn-primary py-1 px-2.5 text-xs flex items-center gap-1"
-                >
+                <button onClick={(e) => { e.stopPropagation(); authGate(() => navigate(`/chat/${traveler._id}`)); }}
+                  className="btn-primary py-1.5 px-3 text-xs flex items-center gap-1">
                   <MessageCircle size={11} /> Chat
                 </button>
               )}

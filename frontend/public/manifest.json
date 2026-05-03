@@ -1,0 +1,14 @@
+{
+  "name": "Kabutar",
+  "short_name": "Kabutar",
+  "description": "Send parcels. Earn by traveling.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f97316",
+  "theme_color": "#f97316",
+  "icons": [
+    { "src": "/logo.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
+import SplashScreen from './components/SplashScreen';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
 import TripsPage from './pages/TripsPage';
@@ -30,19 +32,15 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
       <Route element={<Layout />}>
-        {/* Public routes — accessible without login */}
         <Route path="/" element={<Dashboard />} />
         <Route path="/trips" element={<TripsPage />} />
         <Route path="/parcels" element={<ParcelsPage />} />
-
-        {/* Private routes — redirect to /login with return state */}
         <Route path="/messages" element={<PrivateRoute><ChatListPage /></PrivateRoute>} />
         <Route path="/chat/:userId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
         <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
         <Route path="/my-parcels" element={<PrivateRoute><MyParcelsPage /></PrivateRoute>} />
         <Route path="/kyc" element={<PrivateRoute><KYCPage /></PrivateRoute>} />
       </Route>
-      {/* No Layout, no auth guard — pages manage themselves */}
       <Route path="/complete-profile" element={<CompleteProfilePage />} />
       <Route path="/admin" element={<AdminPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -51,25 +49,41 @@ function AppRoutes() {
 }
 
 export default function App() {
+  // Show splash on every fresh app open.
+  // In dev: only once per browser session to avoid annoyance during hot-reload.
+  const [splashDone, setSplashDone] = useState(() => {
+    if (import.meta.env.DEV) {
+      if (sessionStorage.getItem('kabutar_splash_shown')) return true;
+      sessionStorage.setItem('kabutar_splash_shown', '1');
+    }
+    return false;
+  });
+
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-        <Toaster
-          position="top-center"
-          toastOptions={{
-            duration: 3000,
-            style: {
-              background: '#1c1917',
-              color: '#fafaf9',
-              borderRadius: '12px',
-              fontSize: '14px',
-              fontFamily: 'Sora, sans-serif',
-            },
-            success: { iconTheme: { primary: '#f97316', secondary: '#fff' } },
-          }}
-        />
-      </AuthProvider>
-    </BrowserRouter>
+    <>
+      {/* Splash screen — renders on top until animation completes */}
+      {!splashDone && <SplashScreen onDone={() => setSplashDone(true)} />}
+
+      {/* Main app — renders immediately underneath so it's ready when splash exits */}
+      <BrowserRouter>
+        <AuthProvider>
+          <AppRoutes />
+          <Toaster
+            position="top-center"
+            toastOptions={{
+              duration: 3000,
+              style: {
+                background: '#1c1917',
+                color: '#fafaf9',
+                borderRadius: '12px',
+                fontSize: '14px',
+                fontFamily: 'Sora, sans-serif',
+              },
+              success: { iconTheme: { primary: '#f97316', secondary: '#fff' } },
+            }}
+          />
+        </AuthProvider>
+      </BrowserRouter>
+    </>
   );
 }

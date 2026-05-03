@@ -165,6 +165,29 @@ router.patch('/me', protect, async (req, res) => {
   }
 });
 
+// POST /api/auth/me/phone — add + mark verified (called after Firebase OTP confirmation)
+router.post('/me/phone', protect, async (req, res) => {
+  try {
+    const { phone } = req.body;
+    const phoneRegex = /^\+91[6-9]\d{9}$/;
+    if (!phoneRegex.test(phone)) {
+      return res.status(400).json({ message: 'Invalid phone. Use format +91XXXXXXXXXX' });
+    }
+    const taken = await User.findOne({ phone, _id: { $ne: req.user._id } });
+    if (taken) {
+      return res.status(409).json({ message: 'Phone number already registered to another account' });
+    }
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { phone, isPhoneVerified: true },
+      { new: true }
+    ).select('-reviews');
+    res.json({ user, message: 'Phone verified and saved' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // POST /api/auth/me/image — upload profile photo (multer file → stored URL)
 // Also accepts legacy { imageUrl } JSON body for backward compat
 const { upload, getFileUrl } = require('../utils/upload');

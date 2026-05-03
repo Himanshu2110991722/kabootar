@@ -14,35 +14,34 @@ import { Phone, ArrowRight, ChevronLeft, Shield } from 'lucide-react';
 const STEPS = { HOME: 'home', PHONE: 'phone', OTP: 'otp', NAME: 'name' };
 
 export default function LoginPage() {
-  const [step, setStep] = useState(STEPS.HOME);
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [name, setName] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [step, setStep]               = useState(STEPS.HOME);
+  const [phone, setPhone]             = useState('');
+  const [otp, setOtp]                 = useState(['', '', '', '', '', '']);
+  const [name, setName]               = useState('');
+  const [loading, setLoading]         = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [confirmResult, setConfirmResult] = useState(null);
-  const [idToken, setIdToken] = useState(null);
+  const [idToken, setIdToken]         = useState(null);
   const otpRefs = useRef([]);
   const { login } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
+  const navigate   = useNavigate();
+  const location   = useLocation();
 
   const redirectAfterLogin = (res) => {
     if (res?.requiresProfileCompletion) {
       navigate('/complete-profile', { replace: true });
     } else {
-      const from = location.state?.from || '/';
-      navigate(from, { replace: true });
+      navigate(location.state?.from || '/', { replace: true });
     }
   };
 
-  // ── Google Sign-In ──────────────────────────────────────────────────────────
+  // ── Google Sign-In ───────────────────────────────────────────────────────────
   const signInWithGoogle = async () => {
     setGoogleLoading(true);
     try {
       const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const token = await result.user.getIdToken();
+      const result   = await signInWithPopup(auth, provider);
+      const token    = await result.user.getIdToken();
       setIdToken(token);
       const res = await login(token);
       if (res.success) {
@@ -55,15 +54,11 @@ export default function LoginPage() {
         toast.error(res.message);
       }
     } catch (err) {
-      if (err.code !== 'auth/popup-closed-by-user') {
-        toast.error('Google sign-in failed');
-      }
-    } finally {
-      setGoogleLoading(false);
-    }
+      if (err.code !== 'auth/popup-closed-by-user') toast.error('Google sign-in failed');
+    } finally { setGoogleLoading(false); }
   };
 
-  // ── Phone OTP ───────────────────────────────────────────────────────────────
+  // ── Phone OTP ─────────────────────────────────────────────────────────────────
   const setupRecaptcha = () => {
     if (!window.recaptchaVerifier) {
       window.recaptchaVerifier = new RecaptchaVerifier(
@@ -74,9 +69,7 @@ export default function LoginPage() {
 
   const sendOtp = async () => {
     const fullPhone = phone.startsWith('+') ? phone : `+91${phone}`;
-    if (fullPhone.replace(/\D/g, '').length < 10) {
-      toast.error('Enter a valid phone number'); return;
-    }
+    if (fullPhone.replace(/\D/g, '').length < 10) { toast.error('Enter a valid phone number'); return; }
     setLoading(true);
     try {
       setupRecaptcha();
@@ -96,7 +89,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const result = await confirmResult.confirm(code);
-      const token = await result.user.getIdToken();
+      const token  = await result.user.getIdToken();
       setIdToken(token);
       const res = await login(token);
       if (res.success) { toast.success('Welcome back!'); redirectAfterLogin(res); }
@@ -107,9 +100,7 @@ export default function LoginPage() {
   };
 
   const submitName = async () => {
-    if (!name.trim() || name.trim().length < 2) {
-      toast.error('Enter your full name'); return;
-    }
+    if (!name.trim() || name.trim().length < 2) { toast.error('Enter your full name'); return; }
     setLoading(true);
     const res = await login(idToken, name.trim());
     setLoading(false);
@@ -119,153 +110,179 @@ export default function LoginPage() {
 
   const handleOtpChange = (val, idx) => {
     const digit = val.replace(/\D/g, '').slice(-1);
-    const next = [...otp];
-    next[idx] = digit;
-    setOtp(next);
+    const next  = [...otp]; next[idx] = digit; setOtp(next);
     if (digit && idx < 5) otpRefs.current[idx + 1]?.focus();
   };
-
   const handleOtpKey = (e, idx) => {
-    if (e.key === 'Backspace' && !otp[idx] && idx > 0)
-      otpRefs.current[idx - 1]?.focus();
+    if (e.key === 'Backspace' && !otp[idx] && idx > 0) otpRefs.current[idx - 1]?.focus();
   };
 
+  // ── HOME step (full-screen branded) ─────────────────────────────────────────
+  if (step === STEPS.HOME) {
+    return (
+      <div className="min-h-screen flex flex-col"
+        style={{ background: 'linear-gradient(160deg, #f97316 0%, #ea580c 55%, #9a3412 100%)' }}>
+
+        {/* Decorative circles */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-20 -right-12 w-56 h-56 rounded-full bg-white/10" />
+          <div className="absolute top-1/3 -left-16 w-40 h-40 rounded-full bg-white/8" />
+        </div>
+
+        {/* Logo section — top 60% */}
+        <div className="flex-1 flex flex-col items-center justify-center px-8 relative z-10 pt-16">
+          {/* App logo */}
+          <div className="w-28 h-28 rounded-3xl overflow-hidden shadow-2xl mb-6 border-4 border-white/20">
+            <img src="/logo.png" alt="Kabutar"
+              className="w-full h-full object-cover"
+              onError={e => {
+                e.target.style.display = 'none';
+                e.target.parentElement.innerHTML =
+                  '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:56px;background:rgba(255,255,255,0.15)">🕊️</div>';
+              }}
+            />
+          </div>
+
+          <h1 className="text-4xl font-black text-white tracking-tight mb-2">kabutar</h1>
+          <p className="text-orange-100 text-center text-sm font-medium leading-relaxed max-w-xs">
+            Send parcels with trusted travelers.{'\n'}Save money. Earn by traveling.
+          </p>
+
+          {/* Floating trust chips */}
+          <div className="flex gap-2 mt-8 flex-wrap justify-center">
+            {['✅ OTP Verified', '⭐ Trust Ratings', '🔐 KYC Secured'].map(t => (
+              <span key={t} className="bg-white/15 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full">
+                {t}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Auth buttons — anchored to bottom */}
+        <div className="relative z-10 px-5 pb-10 pt-6"
+          style={{ background: 'linear-gradient(to top, rgba(154,52,18,0.95) 0%, transparent 100%)' }}>
+
+          {/* Google */}
+          <button onClick={signInWithGoogle} disabled={googleLoading}
+            className="w-full flex items-center justify-center gap-3 bg-white rounded-2xl py-4 mb-3 font-semibold text-stone-800 text-sm shadow-lg active:scale-95 transition-all disabled:opacity-70">
+            {googleLoading ? <Spinner /> : <><GoogleIcon /> Continue with Google</>}
+          </button>
+
+          {/* Phone */}
+          <button onClick={() => setStep(STEPS.PHONE)}
+            className="w-full flex items-center justify-center gap-3 bg-white/15 border border-white/25 rounded-2xl py-4 font-semibold text-white text-sm active:scale-95 transition-all backdrop-blur-sm">
+            <Phone size={17} />
+            Continue with Phone
+          </button>
+
+          <p className="text-center text-white/50 text-[11px] mt-5">
+            By continuing, you agree to our Terms &amp; Privacy Policy
+          </p>
+        </div>
+
+        <div id="recaptcha-container" />
+      </div>
+    );
+  }
+
+  // ── PHONE / OTP / NAME steps — clean form view ─────────────────────────────
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      {/* Hero */}
-      <div className="bg-gradient-to-br from-orange-500 to-orange-600 px-6 pt-16 pb-12 text-white">
-        <div className="text-5xl mb-3">🕊️</div>
-        <h1 className="text-3xl font-bold tracking-tight">kabutar</h1>
-        <p className="text-orange-100 mt-2 text-sm leading-relaxed">
-          Send parcels with trusted travelers.<br />Save money. Go farther.
+    <div className="min-h-screen bg-stone-50 flex flex-col">
+      {/* Compact header */}
+      <div className="bg-gradient-to-br from-orange-500 to-orange-600 px-5 pt-12 pb-8">
+        <div className="flex items-center gap-3 mb-4">
+          <button onClick={() => setStep(STEPS.HOME)}
+            className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-white">
+            <ChevronLeft size={18} />
+          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-white text-lg">🕊️</span>
+            <span className="font-bold text-white text-lg">kabutar</span>
+          </div>
+        </div>
+        <h2 className="text-2xl font-bold text-white">
+          {step === STEPS.PHONE ? 'Your number' :
+           step === STEPS.OTP   ? 'Enter OTP'   : 'Your name'}
+        </h2>
+        <p className="text-orange-100 text-sm mt-1">
+          {step === STEPS.PHONE ? "We'll send a one-time password to verify" :
+           step === STEPS.OTP   ? `Sent to +91 ${phone}` :
+           'Help others know who you are'}
         </p>
       </div>
 
-      <div className="flex-1 px-6 pt-8">
+      <div className="flex-1 px-5 pt-6 space-y-4">
 
-        {/* ── HOME ─────────────────────────────────────────────── */}
-        {step === STEPS.HOME && (
-          <div className="animate-slide-up space-y-3">
-            <h2 className="text-xl font-bold text-stone-900 mb-1">Get started</h2>
-            <p className="text-stone-500 text-sm mb-6">Choose how you want to sign in</p>
-
-            <button
-              onClick={signInWithGoogle}
-              disabled={googleLoading}
-              className="w-full flex items-center justify-center gap-3 border border-stone-200 hover:border-stone-300 hover:bg-stone-50 rounded-xl py-3 transition-all font-semibold text-stone-700 text-sm active:scale-95"
-            >
-              {googleLoading ? <Spinner /> : <><GoogleIcon />Continue with Google</>}
-            </button>
-
-            <div className="flex items-center gap-3 py-1">
-              <div className="flex-1 h-px bg-stone-100" />
-              <span className="text-xs text-stone-400">or</span>
-              <div className="flex-1 h-px bg-stone-100" />
-            </div>
-
-            <button
-              onClick={() => setStep(STEPS.PHONE)}
-              className="w-full flex items-center justify-center gap-3 bg-orange-500 hover:bg-orange-600 rounded-xl py-3 transition-all font-semibold text-white text-sm active:scale-95"
-            >
-              <Phone size={16} />
-              Continue with Phone
-            </button>
-          </div>
-        )}
-
-        {/* ── PHONE ─────────────────────────────────────────────── */}
+        {/* ── PHONE ── */}
         {step === STEPS.PHONE && (
-          <div className="animate-slide-up">
-            <BackBtn onClick={() => setStep(STEPS.HOME)} />
-            <h2 className="text-xl font-bold text-stone-900 mb-1">Enter your number</h2>
-            <p className="text-stone-500 text-sm mb-5">We'll send you a one-time password</p>
-            <div className="flex gap-2 mb-4">
-              <div className="input-field w-16 text-center font-semibold text-stone-600 shrink-0 flex items-center justify-center">+91</div>
-              <input
-                className="input-field flex-1"
+          <>
+            <div className="flex gap-2">
+              <div className="w-16 bg-white border border-stone-200 rounded-xl flex items-center justify-center text-stone-600 font-semibold text-sm shadow-sm">
+                +91
+              </div>
+              <input className="input-field flex-1 text-lg font-semibold tracking-widest"
                 placeholder="98765 43210"
                 value={phone}
                 onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                 onKeyDown={e => e.key === 'Enter' && sendOtp()}
-                type="tel"
-                inputMode="numeric"
-                autoFocus
-              />
+                type="tel" inputMode="numeric" autoFocus maxLength={10} />
             </div>
-            <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={sendOtp} disabled={loading}>
-              {loading ? <Spinner /> : <><span>Send OTP</span><ArrowRight size={16} /></>}
+            <button className="btn-primary w-full flex items-center justify-center gap-2 py-4 text-base rounded-2xl"
+              onClick={sendOtp} disabled={loading || phone.length < 10}>
+              {loading ? <Spinner /> : <><span>Send OTP</span><ArrowRight size={17} /></>}
             </button>
-          </div>
+          </>
         )}
 
-        {/* ── OTP ───────────────────────────────────────────────── */}
+        {/* ── OTP ── */}
         {step === STEPS.OTP && (
-          <div className="animate-slide-up">
-            <BackBtn onClick={() => setStep(STEPS.PHONE)} />
-            <h2 className="text-xl font-bold text-stone-900 mb-1">Enter OTP</h2>
-            <p className="text-stone-500 text-sm mb-5">
-              Sent to +91 {phone}
-              <button onClick={() => setStep(STEPS.PHONE)} className="text-orange-500 ml-2 font-semibold">Change</button>
-            </p>
-            <div className="flex gap-2 justify-between mb-5">
+          <>
+            <div className="flex gap-2 justify-between">
               {otp.map((d, i) => (
-                <input
-                  key={i}
-                  ref={el => (otpRefs.current[i] = el)}
-                  className="w-12 h-12 text-center text-lg font-bold border-2 border-stone-200 focus:border-orange-400 rounded-xl outline-none transition-colors"
+                <input key={i} ref={el => (otpRefs.current[i] = el)}
+                  className="flex-1 h-14 text-center text-xl font-bold border-2 border-stone-200 focus:border-orange-400 rounded-xl outline-none transition-colors bg-white shadow-sm"
                   value={d}
                   onChange={e => handleOtpChange(e.target.value, i)}
                   onKeyDown={e => handleOtpKey(e, i)}
-                  inputMode="numeric"
-                  maxLength={1}
-                />
+                  inputMode="numeric" maxLength={1} />
               ))}
             </div>
-            <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={verifyOtp} disabled={loading}>
-              {loading ? <Spinner /> : <><Shield size={16} /><span>Verify OTP</span></>}
+            <button className="btn-primary w-full flex items-center justify-center gap-2 py-4 text-base rounded-2xl"
+              onClick={verifyOtp} disabled={loading}>
+              {loading ? <Spinner /> : <><Shield size={17} /><span>Verify OTP</span></>}
             </button>
-          </div>
+            <button onClick={() => { setStep(STEPS.PHONE); setOtp(['','','','','','']); }}
+              className="w-full text-center text-orange-500 text-sm font-semibold py-2">
+              Change number or resend
+            </button>
+          </>
         )}
 
-        {/* ── NAME ──────────────────────────────────────────────── */}
+        {/* ── NAME ── */}
         {step === STEPS.NAME && (
-          <div className="animate-slide-up">
-            <h2 className="text-xl font-bold text-stone-900 mb-1">What's your name?</h2>
-            <p className="text-stone-500 text-sm mb-5">Help others know who you are</p>
-            <input
-              className="input-field mb-4"
-              placeholder="Full name"
+          <>
+            <input className="input-field text-lg font-semibold py-4 rounded-2xl"
+              placeholder="Your full name"
               value={name}
               onChange={e => setName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && submitName()}
-              autoFocus
-            />
-            <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={submitName} disabled={loading}>
-              {loading ? <Spinner /> : <><span>Let's go</span><ArrowRight size={16} /></>}
+              autoFocus />
+            <button className="btn-primary w-full flex items-center justify-center gap-2 py-4 text-base rounded-2xl"
+              onClick={submitName} disabled={loading}>
+              {loading ? <Spinner /> : <><span>Get Started</span><ArrowRight size={17} /></>}
             </button>
-          </div>
+          </>
         )}
       </div>
 
       <div id="recaptcha-container" />
-      <p className="text-center text-xs text-stone-400 pb-8 px-6 mt-6">
-        By continuing, you agree to our Terms & Privacy Policy
-      </p>
     </div>
-  );
-}
-
-function BackBtn({ onClick }) {
-  return (
-    <button onClick={onClick} className="btn-ghost -ml-2 mb-4 flex items-center gap-1 text-stone-500">
-      <ChevronLeft size={16} /> Back
-    </button>
   );
 }
 
 function Spinner() {
   return (
-    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
     </svg>
@@ -274,7 +291,7 @@ function Spinner() {
 
 function GoogleIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 18 18">
+    <svg width="20" height="20" viewBox="0 0 18 18">
       <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
       <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
       <path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.039l3.007-2.332z"/>

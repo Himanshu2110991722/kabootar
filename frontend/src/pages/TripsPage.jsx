@@ -6,6 +6,7 @@ import TripCard from '../components/TripCard';
 import PostTripModal from '../components/PostTripModal';
 import { TripSkeletons } from '../components/SkeletonCard';
 import { Plus, X, Calendar, Search, History, RefreshCw } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { useAuthGate } from '../hooks/useAuthGate';
 
@@ -99,6 +100,19 @@ export default function TripsPage() {
     setMyTrips(prev => prev.map(t => t._id === updated._id ? updated : t));
     setTrips(prev => prev.map(t => t._id === updated._id ? updated : t));
     setEditingTrip(null);
+  };
+
+  const handleMarkFull = async (id) => {
+    if (!confirm('Mark this trip as full? It will be removed from the public listing and moved to your Travel History.')) return;
+    try {
+      await api.patch(`/trips/${id}`, { status: 'completed' });
+      // Remove from public list, move to history (status no longer 'active')
+      setTrips(prev => prev.filter(t => t._id !== id));
+      setMyTrips(prev => prev.map(t => t._id === id ? { ...t, status: 'completed' } : t));
+      toast.success('Trip marked as full — moved to Travel History');
+    } catch {
+      toast.error('Failed to update trip');
+    }
   };
 
   const clearFilter = (key) => setSearch(s => ({ ...s, [key]: '' }));
@@ -252,6 +266,7 @@ export default function TripsPage() {
                       showDelete={isOwner(trip)}
                       onDelete={() => handleDelete(trip._id)}
                       onEdit={isOwner(trip) ? () => setEditingTrip(trip) : undefined}
+                      onMarkFull={isOwner(trip) ? () => handleMarkFull(trip._id) : undefined}
                     />
                   ))}
                 </div>
