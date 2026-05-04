@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "705500228139",
+    "project_id": "kabootar-9174c",
+    "storage_bucket": "kabootar-9174c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:705500228139:android:56650893ba2e59d30ad86e",
+        "android_client_info": {
+          "package_name": "in.kabutar.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "705500228139-3ih36g3esglvrk0amn4f8fg2eaghkcm9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "in.kabutar.app",
+            "certificate_hash": "2cf068580145b27ffb1dec068746adad0420e5f7"
+          }
+        },
+        {
+          "client_id": "705500228139-epbriuarbpoqhpgb3051efn4kgevidvt.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD_RqcwMIKKZsSbyF1AgLDeF1fnAOu0swk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "705500228139-epbriuarbpoqhpgb3051efn4kgevidvt.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -10,6 +10,11 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Phone, ArrowRight, ChevronLeft, Shield } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+
+// true when running as native Android/iOS app.
+// Google signInWithPopup doesn't work in Android WebViews — hide it on native.
+const isNativeApp = Capacitor.isNativePlatform();
 
 const STEPS = { HOME: 'home', PHONE: 'phone', OTP: 'otp', NAME: 'name' };
 
@@ -35,7 +40,7 @@ export default function LoginPage() {
     }
   };
 
-  // ── Google Sign-In ───────────────────────────────────────────────────────────
+  // ── Google Sign-In (web browser only, not available in Android WebView) ──────
   const signInWithGoogle = async () => {
     setGoogleLoading(true);
     try {
@@ -83,9 +88,10 @@ export default function LoginPage() {
     } finally { setLoading(false); }
   };
 
-  const verifyOtp = async () => {
-    const code = otp.join('');
-    if (code.length !== 6) { toast.error('Enter complete OTP'); return; }
+  // Core verify — accepts the OTP array directly so auto-submit works reliably
+  const verifyOtpCode = async (otpArray) => {
+    const code = otpArray.join('');
+    if (code.length !== 6) return;
     setLoading(true);
     try {
       const result = await confirmResult.confirm(code);
@@ -95,8 +101,33 @@ export default function LoginPage() {
       if (res.success) { toast.success('Welcome back!'); redirectAfterLogin(res); }
       else if (res.newUser) setStep(STEPS.NAME);
       else toast.error(res.message);
-    } catch { toast.error('Invalid OTP'); }
+    } catch { toast.error('Invalid OTP — please try again'); }
     finally { setLoading(false); }
+  };
+
+  const verifyOtp = () => verifyOtpCode(otp);
+
+  const handleOtpChange = (val, idx) => {
+    const digit = val.replace(/\D/g, '').slice(-1);
+    const next  = [...otp];
+    next[idx]   = digit;
+    setOtp(next);
+
+    if (digit && idx < 5) {
+      // Move focus to next box
+      otpRefs.current[idx + 1]?.focus();
+    } else if (digit && idx === 5) {
+      // Last box filled — auto-submit after a brief paint delay
+      const allFilled = next.every(d => d !== '');
+      if (allFilled) {
+        otpRefs.current[5]?.blur();
+        setTimeout(() => verifyOtpCode(next), 120);
+      }
+    }
+  };
+
+  const handleOtpKey = (e, idx) => {
+    if (e.key === 'Backspace' && !otp[idx] && idx > 0) otpRefs.current[idx - 1]?.focus();
   };
 
   const submitName = async () => {
@@ -108,33 +139,21 @@ export default function LoginPage() {
     else toast.error(res.message);
   };
 
-  const handleOtpChange = (val, idx) => {
-    const digit = val.replace(/\D/g, '').slice(-1);
-    const next  = [...otp]; next[idx] = digit; setOtp(next);
-    if (digit && idx < 5) otpRefs.current[idx + 1]?.focus();
-  };
-  const handleOtpKey = (e, idx) => {
-    if (e.key === 'Backspace' && !otp[idx] && idx > 0) otpRefs.current[idx - 1]?.focus();
-  };
-
-  // ── HOME step (full-screen branded) ─────────────────────────────────────────
+  // ── HOME step ─────────────────────────────────────────────────────────────────
   if (step === STEPS.HOME) {
     return (
       <div className="min-h-screen flex flex-col"
         style={{ background: 'linear-gradient(160deg, #f97316 0%, #ea580c 55%, #9a3412 100%)' }}>
 
-        {/* Decorative circles */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-20 -right-12 w-56 h-56 rounded-full bg-white/10" />
           <div className="absolute top-1/3 -left-16 w-40 h-40 rounded-full bg-white/8" />
         </div>
 
-        {/* Logo section — top 60% */}
+        {/* Logo section */}
         <div className="flex-1 flex flex-col items-center justify-center px-8 relative z-10 pt-16">
-          {/* App logo */}
           <div className="w-28 h-28 rounded-3xl overflow-hidden shadow-2xl mb-6 border-4 border-white/20">
-            <img src="/logo.png" alt="Kabutar"
-              className="w-full h-full object-cover"
+            <img src="/logo.png" alt="Kabutar" className="w-full h-full object-cover"
               onError={e => {
                 e.target.style.display = 'none';
                 e.target.parentElement.innerHTML =
@@ -142,40 +161,47 @@ export default function LoginPage() {
               }}
             />
           </div>
-
           <h1 className="text-4xl font-black text-white tracking-tight mb-2">kabutar</h1>
           <p className="text-orange-100 text-center text-sm font-medium leading-relaxed max-w-xs">
             Send parcels with trusted travelers.{'\n'}Save money. Earn by traveling.
           </p>
-
-          {/* Floating trust chips */}
           <div className="flex gap-2 mt-8 flex-wrap justify-center">
             {['✅ OTP Verified', '⭐ Trust Ratings', '🔐 KYC Secured'].map(t => (
-              <span key={t} className="bg-white/15 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full">
-                {t}
-              </span>
+              <span key={t} className="bg-white/15 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full">{t}</span>
             ))}
           </div>
         </div>
 
-        {/* Auth buttons — anchored to bottom */}
+        {/* Auth buttons */}
         <div className="relative z-10 px-5 pb-10 pt-6"
           style={{ background: 'linear-gradient(to top, rgba(154,52,18,0.95) 0%, transparent 100%)' }}>
 
-          {/* Google */}
-          <button onClick={signInWithGoogle} disabled={googleLoading}
-            className="w-full flex items-center justify-center gap-3 bg-white rounded-2xl py-4 mb-3 font-semibold text-stone-800 text-sm shadow-lg active:scale-95 transition-all disabled:opacity-70">
-            {googleLoading ? <Spinner /> : <><GoogleIcon /> Continue with Google</>}
-          </button>
+          {/* Google — only on web browser, NOT in Android app (WebView can't handle popup) */}
+          {!isNativeApp && (
+            <button onClick={signInWithGoogle} disabled={googleLoading}
+              className="w-full flex items-center justify-center gap-3 bg-white rounded-2xl py-4 mb-3 font-semibold text-stone-800 text-sm shadow-lg active:scale-95 transition-all disabled:opacity-70">
+              {googleLoading ? <Spinner /> : <><GoogleIcon /> Continue with Google</>}
+            </button>
+          )}
 
-          {/* Phone */}
+          {/* Phone OTP — works on both web and Android */}
           <button onClick={() => setStep(STEPS.PHONE)}
-            className="w-full flex items-center justify-center gap-3 bg-white/15 border border-white/25 rounded-2xl py-4 font-semibold text-white text-sm active:scale-95 transition-all backdrop-blur-sm">
-            <Phone size={17} />
+            className={`w-full flex items-center justify-center gap-3 rounded-2xl py-4 font-semibold text-sm active:scale-95 transition-all ${
+              isNativeApp
+                ? 'bg-white text-stone-800 shadow-lg'           // primary on Android
+                : 'bg-white/15 border border-white/25 text-white backdrop-blur-sm'  // secondary on web
+            }`}>
+            <Phone size={17} className={isNativeApp ? 'text-orange-500' : ''} />
             Continue with Phone
           </button>
 
-          <p className="text-center text-white/50 text-[11px] mt-5">
+          {isNativeApp && (
+            <p className="text-center text-white/50 text-[11px] mt-3">
+              Use phone number to sign in securely
+            </p>
+          )}
+
+          <p className="text-center text-white/50 text-[11px] mt-4">
             By continuing, you agree to our Terms &amp; Privacy Policy
           </p>
         </div>
@@ -185,10 +211,10 @@ export default function LoginPage() {
     );
   }
 
-  // ── PHONE / OTP / NAME steps — clean form view ─────────────────────────────
+  // ── PHONE / OTP / NAME steps ──────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
-      {/* Compact header */}
+      {/* Header */}
       <div className="bg-gradient-to-br from-orange-500 to-orange-600 px-5 pt-12 pb-8">
         <div className="flex items-center gap-3 mb-4">
           <button onClick={() => setStep(STEPS.HOME)}
@@ -201,11 +227,10 @@ export default function LoginPage() {
           </div>
         </div>
         <h2 className="text-2xl font-bold text-white">
-          {step === STEPS.PHONE ? 'Your number' :
-           step === STEPS.OTP   ? 'Enter OTP'   : 'Your name'}
+          {step === STEPS.PHONE ? 'Your number' : step === STEPS.OTP ? 'Enter OTP' : 'Your name'}
         </h2>
         <p className="text-orange-100 text-sm mt-1">
-          {step === STEPS.PHONE ? "We'll send a one-time password to verify" :
+          {step === STEPS.PHONE ? "We'll send a one-time password via SMS" :
            step === STEPS.OTP   ? `Sent to +91 ${phone}` :
            'Help others know who you are'}
         </p>
@@ -217,7 +242,7 @@ export default function LoginPage() {
         {step === STEPS.PHONE && (
           <>
             <div className="flex gap-2">
-              <div className="w-16 bg-white border border-stone-200 rounded-xl flex items-center justify-center text-stone-600 font-semibold text-sm shadow-sm">
+              <div className="w-16 bg-white border border-stone-200 rounded-xl flex items-center justify-center text-stone-600 font-semibold text-sm shadow-sm shrink-0">
                 +91
               </div>
               <input className="input-field flex-1 text-lg font-semibold tracking-widest"
@@ -237,24 +262,52 @@ export default function LoginPage() {
         {/* ── OTP ── */}
         {step === STEPS.OTP && (
           <>
-            <div className="flex gap-2 justify-between">
+            <p className="text-xs text-stone-400 text-center">
+              Enter the 6-digit code — it will verify automatically
+            </p>
+
+            {/* OTP boxes — flex-1 so they scale with screen width, gap-1.5 for tight fit */}
+            <div className="flex gap-1.5 w-full">
               {otp.map((d, i) => (
-                <input key={i} ref={el => (otpRefs.current[i] = el)}
-                  className="flex-1 h-14 text-center text-xl font-bold border-2 border-stone-200 focus:border-orange-400 rounded-xl outline-none transition-colors bg-white shadow-sm"
+                <input
+                  key={i}
+                  ref={el => (otpRefs.current[i] = el)}
+                  className={`flex-1 min-w-0 aspect-square text-center font-bold border-2 rounded-xl outline-none transition-all bg-white shadow-sm
+                    text-xl
+                    ${d ? 'border-orange-400 bg-orange-50 text-orange-600' : 'border-stone-200 text-stone-900'}
+                    ${loading ? 'opacity-50 pointer-events-none' : 'focus:border-orange-400 focus:ring-2 focus:ring-orange-100'}
+                  `}
                   value={d}
                   onChange={e => handleOtpChange(e.target.value, i)}
                   onKeyDown={e => handleOtpKey(e, i)}
-                  inputMode="numeric" maxLength={1} />
+                  inputMode="numeric"
+                  maxLength={1}
+                  autoFocus={i === 0}
+                  disabled={loading}
+                />
               ))}
             </div>
-            <button className="btn-primary w-full flex items-center justify-center gap-2 py-4 text-base rounded-2xl"
-              onClick={verifyOtp} disabled={loading}>
-              {loading ? <Spinner /> : <><Shield size={17} /><span>Verify OTP</span></>}
-            </button>
-            <button onClick={() => { setStep(STEPS.PHONE); setOtp(['','','','','','']); }}
-              className="w-full text-center text-orange-500 text-sm font-semibold py-2">
-              Change number or resend
-            </button>
+
+            {/* Auto-submitting indicator */}
+            {loading && (
+              <div className="flex items-center justify-center gap-2 py-2">
+                <Spinner />
+                <span className="text-sm text-stone-500 font-medium">Verifying…</span>
+              </div>
+            )}
+
+            {!loading && (
+              <>
+                <button className="btn-primary w-full flex items-center justify-center gap-2 py-4 text-base rounded-2xl"
+                  onClick={verifyOtp} disabled={otp.join('').length !== 6}>
+                  <Shield size={17} /> Verify OTP
+                </button>
+                <button onClick={() => { setStep(STEPS.PHONE); setOtp(['','','','','','']); }}
+                  className="w-full text-center text-orange-500 text-sm font-semibold py-2">
+                  Change number or resend
+                </button>
+              </>
+            )}
           </>
         )}
 

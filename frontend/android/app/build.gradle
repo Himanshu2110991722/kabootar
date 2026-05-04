@@ -1,5 +1,15 @@
 apply plugin: 'com.android.application'
 
+// Fix: kotlin-stdlib-jdk8 was merged into kotlin-stdlib in 1.8+
+// Both appearing causes "Duplicate class" build errors
+configurations.all {
+    resolutionStrategy.eachDependency { DependencyResolveDetails details ->
+        if (details.requested.group == 'org.jetbrains.kotlin') {
+            details.useVersion '1.9.22'
+        }
+    }
+}
+
 android {
     namespace = "in.kabutar.app"
     compileSdk = rootProject.ext.compileSdkVersion

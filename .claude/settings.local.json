@@ -18,7 +18,12 @@
       "Bash(nslookup _mongodb._tcp.cluster0.4rysrji.mongodb.net)",
       "Bash(npm install *)",
       "Bash(node -e \"const c=require\\('./node_modules/@capacitor/core/package.json'\\);console.log\\('Capacitor installed:',c.version\\)\")",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Read(//c/Program Files/Eclipse Adoptium/**)",
+      "Bash(export JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\")",
+      "Bash(export ANDROID_HOME=\"/c/Users/Himanshu/AppData/Local/Android/Sdk\")",
+      "Bash(./gradlew --stop)",
+      "Bash(rm -rf ~/.gradle/caches/build-cache-*)"
     ]
   }
 }
