@@ -1,12 +1,16 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import api from '../lib/api';
 import ParcelCard from '../components/ParcelCard';
 import PostParcelModal from '../components/PostParcelModal';
 import MatchesModal from '../components/MatchesModal';
+import toast from 'react-hot-toast';
+import LocationFilterBar from '../components/LocationFilterBar';
 import { ParcelSkeletons } from '../components/SkeletonCard';
 import { Plus, X, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAuthGate } from '../hooks/useAuthGate';
+import { useLocationFilter } from '../hooks/useLocationFilter';
+import { POPULAR_CITIES } from '../lib/cityCoords';
 
 const PULL_THRESHOLD = 64;
 
@@ -30,16 +34,20 @@ function LiveBadge({ time }) {
 }
 
 export default function ParcelsPage() {
-  const { user }   = useAuth();
-  const authGate   = useAuthGate();
-  const [parcels,   setParcels]   = useState([]);
-  const [myParcels, setMyParcels] = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [fetchedAt, setFetchedAt] = useState(null);
-  const [tab,       setTab]       = useState('all');
-  const [showModal,   setShowModal]   = useState(false);
-  const [matchParcel, setMatchParcel] = useState(null);
-  const [search,    setSearch]    = useState({ from: '', to: '' });
+  const { user }  = useAuth();
+  const authGate  = useAuthGate();
+  const loc       = useLocationFilter();
+
+  const [parcels,     setParcels]     = useState([]);
+  const [myParcels,   setMyParcels]   = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [fetchedAt,   setFetchedAt]   = useState(null);
+  const [tab,         setTab]         = useState('all');
+  const [showModal,    setShowModal]    = useState(false);
+  const [matchParcel,  setMatchParcel]  = useState(null);
+  const [editingParcel,setEditingParcel]= useState(null);
+  const [search,      setSearch]      = useState({ from: '', to: '' });
+  const [activeFilter,setActiveFilter]= useState('all');
 
   const touchStartY  = useRef(0);
   const [pullDelta,  setPullDelta]  = useState(0);
@@ -51,10 +59,8 @@ export default function ParcelsPage() {
       const params = {};
       if (search.from) params.from = search.from;
       if (search.to)   params.to   = search.to;
-
       const promises = [api.get('/parcels', { params })];
       if (user) promises.push(api.get('/parcels/my'));
-
       const [allRes, myRes] = await Promise.all(promises);
       setParcels(allRes.data.parcels);
       if (myRes) setMyParcels(myRes.data.parcels);
@@ -70,12 +76,8 @@ export default function ParcelsPage() {
     const delta = e.touches[0].clientY - touchStartY.current;
     if (delta > 0) setPullDelta(Math.min(delta * 0.38, PULL_THRESHOLD + 20));
   };
-  const onTouchEnd   = async () => {
-    if (pullDelta >= PULL_THRESHOLD) {
-      setRefreshing(true);
-      await fetchParcels();
-      setRefreshing(false);
-    }
+  const onTouchEnd = async () => {
+    if (pullDelta >= PULL_THRESHOLD) { setRefreshing(true); await fetchParcels(); setRefreshing(false); }
     setPullDelta(0);
   };
 
@@ -86,40 +88,42 @@ export default function ParcelsPage() {
     setParcels(prev => prev.filter(p => p._id !== id));
   };
 
-  const displayed = tab === 'all' ? parcels : myParcels;
+  // Apply client-side location + recent filter on top of server results
+  const source = tab === 'all' ? parcels : myParcels;
+  const filtered = useMemo(() => {
+    let list = [...source];
+    if (activeFilter === 'nearby' && loc.enabled) {
+      list = list.filter(p => loc.matchesNearby(p.fromCity, p.toCity));
+    } else if (activeFilter === 'recent') {
+      list = [...list].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+    return list;
+  }, [source, activeFilter, loc.enabled, loc.nearbyCities, loc.city]); // eslint-disable-line
 
-  const renderStaggered = (items, renderFn) =>
+  const renderStaggered = (items, fn) =>
     items.map((item, i) => (
-      <div key={item._id}
-        style={{ animation: 'staggerIn 0.35s ease both', animationDelay: `${i * 55}ms` }}>
-        {renderFn(item)}
+      <div key={item._id} style={{ animation: 'staggerIn 0.35s ease both', animationDelay: `${i * 55}ms` }}>
+        {fn(item)}
       </div>
     ));
 
   return (
-    <div
-      className="px-4 py-5 relative"
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
-    >
-      {/* Pull-to-refresh indicator */}
-      <div
-        className="absolute left-0 right-0 flex justify-center pointer-events-none z-10 transition-all duration-200"
-        style={{ top: Math.max(0, pullDelta - 8), opacity: pullDelta / PULL_THRESHOLD }}
-      >
+    <div className="px-4 py-5 relative"
+      onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+
+      {/* Pull-to-refresh */}
+      <div className="absolute left-0 right-0 flex justify-center pointer-events-none z-10 transition-all duration-200"
+        style={{ top: Math.max(0, pullDelta - 8), opacity: pullDelta / PULL_THRESHOLD }}>
         <div className="bg-white rounded-full shadow-md border border-stone-100 px-3 py-1.5 flex items-center gap-2">
-          <RefreshCw
-            size={13}
-            className={`text-orange-500 ${refreshing || pullDelta >= PULL_THRESHOLD ? 'animate-spin' : ''}`}
-            style={{ animationDuration: '0.7s' }}
-          />
+          <RefreshCw size={13} className={`text-orange-500 ${refreshing || pullDelta >= PULL_THRESHOLD ? 'animate-spin' : ''}`}
+            style={{ animationDuration: '0.7s' }} />
           <span className="text-xs font-semibold text-stone-600">
             {pullDelta >= PULL_THRESHOLD ? 'Refreshing…' : 'Pull to refresh'}
           </span>
         </div>
       </div>
 
+      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-xl font-bold text-stone-900">Parcels</h1>
@@ -130,6 +134,40 @@ export default function ParcelsPage() {
         </button>
       </div>
 
+      {/* Location filter bar */}
+      <div className="mb-3">
+        <LocationFilterBar
+          activeFilter={activeFilter}
+          onFilter={setActiveFilter}
+          loc={{ ...loc, nearbyCities: loc.nearbyCities }}
+          onDetect={loc.detect}
+          onCityChange={loc.setCity}
+          onRangeChange={loc.setRange}
+          onClear={loc.clear}
+          resultCount={activeFilter !== 'all' ? filtered.length : undefined}
+        />
+      </div>
+
+      {/* Popular cities quick-select */}
+      <div className="overflow-x-auto pb-0.5 mb-2" style={{ scrollbarWidth: 'none' }}>
+        <div className="flex gap-1.5">
+          <span className="text-[10px] text-stone-400 font-semibold uppercase tracking-wide self-center shrink-0">Quick:</span>
+          {POPULAR_CITIES.slice(0, 12).map(city => (
+            <button key={city}
+              onClick={() => setSearch(s => ({ ...s, from: city }))}
+              className={`shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                search.from === city
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-stone-100 text-stone-600 hover:bg-orange-50 hover:text-orange-600'
+              }`}
+            >
+              {city}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Route search */}
       <div className="flex gap-2 mb-4">
         <input className="input-field flex-1" placeholder="From city" value={search.from}
           onChange={e => setSearch(s => ({ ...s, from: e.target.value }))} />
@@ -140,6 +178,7 @@ export default function ParcelsPage() {
         )}
       </div>
 
+      {/* Tabs */}
       <div className="flex gap-1 bg-stone-100 rounded-xl p-1 mb-4">
         <button onClick={() => setTab('all')}
           className={`flex-1 py-1.5 rounded-lg text-sm font-semibold transition-all ${tab === 'all' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
@@ -151,41 +190,59 @@ export default function ParcelsPage() {
         </button>
       </div>
 
-      {loading ? (
-        <ParcelSkeletons count={3} />
-      ) : displayed.length === 0 ? (
+      {loading ? <ParcelSkeletons count={3} /> :
+       filtered.length === 0 ? (
         <div className="card p-8 text-center animate-fade-in">
           <div className="text-3xl mb-2">📦</div>
-          <p className="text-stone-500 text-sm">
-            {tab === 'mine' ? "You haven't posted any requests yet." : 'No open requests found.'}
+          <p className="text-stone-600 text-sm font-semibold mb-1">
+            {activeFilter === 'nearby' && loc.city
+              ? `No parcels found near ${loc.city}`
+              : tab === 'mine' ? 'No requests yet' : 'No open requests'}
           </p>
+          {activeFilter !== 'all' && (
+            <button onClick={() => setActiveFilter('all')} className="text-orange-500 text-xs font-semibold mt-1">
+              Show all routes
+            </button>
+          )}
         </div>
-      ) : (
+       ) : (
         <div className="space-y-2">
-          {renderStaggered(displayed, parcel => (
-            <ParcelCard
-              parcel={parcel}
+          {(activeFilter !== 'all') && (
+            <p className="text-xs text-stone-400">
+              {filtered.length} parcel{filtered.length !== 1 ? 's' : ''}
+              {activeFilter === 'nearby' && loc.city ? ` near ${loc.city}` : ''}
+            </p>
+          )}
+          {renderStaggered(filtered, parcel => (
+            <ParcelCard parcel={parcel}
               showDelete={tab === 'mine'}
               onDelete={() => handleDelete(parcel._id)}
               onFindMatch={() => authGate(() => setMatchParcel(parcel))}
+              onEdit={tab === 'mine' ? () => setEditingParcel(parcel) : undefined}
             />
           ))}
         </div>
-      )}
+       )
+      }
 
       {showModal && (
+        <PostParcelModal onClose={() => setShowModal(false)}
+          onSuccess={p => { setMyParcels(prev => [p, ...prev]); setParcels(prev => [p, ...prev]); setShowModal(false); }} />
+      )}
+      {matchParcel && <MatchesModal parcel={matchParcel} onClose={() => setMatchParcel(null)} />}
+
+      {editingParcel && (
         <PostParcelModal
-          onClose={() => setShowModal(false)}
-          onSuccess={p => {
-            setMyParcels(prev => [p, ...prev]);
-            setParcels(prev => [p, ...prev]);
-            setShowModal(false);
+          initialData={editingParcel}
+          parcelId={editingParcel._id}
+          onClose={() => setEditingParcel(null)}
+          onSuccess={updated => {
+            setParcels(prev => prev.map(p => p._id === updated._id ? updated : p));
+            setMyParcels(prev => prev.map(p => p._id === updated._id ? updated : p));
+            setEditingParcel(null);
+            toast.success('Parcel request updated!');
           }}
         />
-      )}
-
-      {matchParcel && (
-        <MatchesModal parcel={matchParcel} onClose={() => setMatchParcel(null)} />
       )}
     </div>
   );

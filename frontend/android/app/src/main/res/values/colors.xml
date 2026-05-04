@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#f97316</color>
+    <color name="colorPrimaryDark">#ea580c</color>
+    <color name="colorAccent">#f97316</color>
+    <!-- Splash screen background — matches the orange gradient start -->
+    <color name="splash_background">#f97316</color>
+</resources>

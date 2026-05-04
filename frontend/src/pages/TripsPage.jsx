@@ -1,20 +1,22 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import api from '../lib/api';
 import TripCard from '../components/TripCard';
 import PostTripModal from '../components/PostTripModal';
+import LocationFilterBar from '../components/LocationFilterBar';
 import { TripSkeletons } from '../components/SkeletonCard';
 import { Plus, X, Calendar, Search, History, RefreshCw } from 'lucide-react';
-import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { useAuthGate } from '../hooks/useAuthGate';
+import { useLocationFilter } from '../hooks/useLocationFilter';
+import { POPULAR_CITIES } from '../lib/cityCoords';
+import toast from 'react-hot-toast';
 
 const today = new Date().toISOString().split('T')[0];
-const startOfToday = () => { const d = new Date(); d.setHours(0,0,0,0); return d; };
+const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
 const PULL_THRESHOLD = 64;
 
-// ── Live "updated X ago" badge ────────────────────────────────────────────────
 function LiveBadge({ time }) {
   const [label, setLabel] = useState('Just now');
   useEffect(() => {
@@ -35,23 +37,24 @@ function LiveBadge({ time }) {
 }
 
 export default function TripsPage() {
-  const { user }   = useAuth();
-  const authGate   = useAuthGate();
-  const location   = useLocation();
+  const { user }  = useAuth();
+  const authGate  = useAuthGate();
+  const location  = useLocation();
+  const loc       = useLocationFilter();
 
-  const [trips, setTrips]       = useState([]);
-  const [myTrips, setMyTrips]   = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [fetchedAt, setFetchedAt] = useState(null);
-  const [tab, setTab]           = useState(location.state?.tab === 'mine' ? 'mine' : 'all');
-  const [showModal, setShowModal]     = useState(false);
-  const [editingTrip, setEditingTrip] = useState(null);
-  const [search, setSearch]     = useState({ from: '', to: '', date: '' });
+  const [trips,      setTrips]      = useState([]);
+  const [myTrips,    setMyTrips]    = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [fetchedAt,  setFetchedAt]  = useState(null);
+  const [tab,        setTab]        = useState(location.state?.tab === 'mine' ? 'mine' : 'all');
+  const [showModal,  setShowModal]  = useState(false);
+  const [editingTrip,setEditingTrip]= useState(null);
+  const [search,     setSearch]     = useState({ from: '', to: '', date: '' });
+  const [activeFilter, setActiveFilter] = useState('all'); // 'all' | 'nearby' | 'recent'
 
-  // Pull-to-refresh state
-  const touchStartY   = useRef(0);
-  const [pullDelta,   setPullDelta]   = useState(0);
-  const [refreshing,  setRefreshing]  = useState(false);
+  const touchStartY  = useRef(0);
+  const [pullDelta,  setPullDelta]  = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchTrips = useCallback(async () => {
     setLoading(true);
@@ -63,7 +66,6 @@ export default function TripsPage() {
 
       const promises = [api.get('/trips', { params })];
       if (user) promises.push(api.get('/trips/my'));
-
       const [allRes, myRes] = await Promise.all(promises);
       setTrips(allRes.data.trips);
       if (myRes) setMyTrips(myRes.data.trips);
@@ -73,14 +75,14 @@ export default function TripsPage() {
 
   useEffect(() => { fetchTrips(); }, [fetchTrips]);
 
-  // Pull-to-refresh handlers
+  // Pull-to-refresh
   const onTouchStart = (e) => { touchStartY.current = e.touches[0].clientY; };
   const onTouchMove  = (e) => {
     if (window.scrollY > 4) return;
     const delta = e.touches[0].clientY - touchStartY.current;
     if (delta > 0) setPullDelta(Math.min(delta * 0.38, PULL_THRESHOLD + 20));
   };
-  const onTouchEnd   = async () => {
+  const onTouchEnd = async () => {
     if (pullDelta >= PULL_THRESHOLD) {
       setRefreshing(true);
       await fetchTrips();
@@ -103,16 +105,13 @@ export default function TripsPage() {
   };
 
   const handleMarkFull = async (id) => {
-    if (!confirm('Mark this trip as full? It will be removed from the public listing and moved to your Travel History.')) return;
+    if (!confirm('Mark this trip as full? It will move to your Travel History.')) return;
     try {
       await api.patch(`/trips/${id}`, { status: 'completed' });
-      // Remove from public list, move to history (status no longer 'active')
       setTrips(prev => prev.filter(t => t._id !== id));
       setMyTrips(prev => prev.map(t => t._id === id ? { ...t, status: 'completed' } : t));
       toast.success('Trip marked as full — moved to Travel History');
-    } catch {
-      toast.error('Failed to update trip');
-    }
+    } catch { toast.error('Failed to update trip'); }
   };
 
   const clearFilter = (key) => setSearch(s => ({ ...s, [key]: '' }));
@@ -121,41 +120,42 @@ export default function TripsPage() {
   const activeFilters = [
     search.from && { key: 'from', label: `From: ${search.from}` },
     search.to   && { key: 'to',   label: `To: ${search.to}` },
-    search.date && { key: 'date', label: `${format(new Date(search.date), 'dd MMM yyyy')}` },
+    search.date && { key: 'date', label: format(new Date(search.date), 'dd MMM') },
   ].filter(Boolean);
+
+  // Apply client-side location/recent filter
+  const filteredTrips = useMemo(() => {
+    if (activeFilter === 'nearby' && loc.enabled) {
+      return trips.filter(t => loc.matchesNearby(t.fromCity, t.toCity));
+    }
+    if (activeFilter === 'recent') {
+      return [...trips].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+    return trips;
+  }, [trips, activeFilter, loc.enabled, loc.nearbyCities, loc.city]); // eslint-disable-line
 
   const sod = startOfToday();
   const futureMyTrips = myTrips.filter(t => new Date(t.date) >= sod);
   const pastMyTrips   = myTrips.filter(t => new Date(t.date) <  sod);
-  const isOwner = (trip) => trip.userId?._id === user?._id || trip.userId === user?._id;
+  const isOwner = (t) => t.userId?._id === user?._id || t.userId === user?._id;
 
-  // Staggered list renderer
-  const renderStaggered = (items, renderFn) =>
+  const renderStaggered = (items, fn) =>
     items.map((item, i) => (
-      <div key={item._id}
-        style={{ animation: 'staggerIn 0.35s ease both', animationDelay: `${i * 55}ms` }}>
-        {renderFn(item)}
+      <div key={item._id} style={{ animation: 'staggerIn 0.35s ease both', animationDelay: `${i * 55}ms` }}>
+        {fn(item)}
       </div>
     ));
 
   return (
-    <div
-      className="px-4 py-5 relative"
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
-    >
+    <div className="px-4 py-5 relative"
+      onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+
       {/* Pull-to-refresh indicator */}
-      <div
-        className="absolute left-0 right-0 flex justify-center pointer-events-none z-10 transition-all duration-200"
-        style={{ top: Math.max(0, pullDelta - 8), opacity: pullDelta / PULL_THRESHOLD }}
-      >
+      <div className="absolute left-0 right-0 flex justify-center pointer-events-none z-10 transition-all duration-200"
+        style={{ top: Math.max(0, pullDelta - 8), opacity: pullDelta / PULL_THRESHOLD }}>
         <div className="bg-white rounded-full shadow-md border border-stone-100 px-3 py-1.5 flex items-center gap-2">
-          <RefreshCw
-            size={13}
-            className={`text-orange-500 ${refreshing || pullDelta >= PULL_THRESHOLD ? 'animate-spin' : ''}`}
-            style={{ animationDuration: '0.7s' }}
-          />
+          <RefreshCw size={13} className={`text-orange-500 ${refreshing || pullDelta >= PULL_THRESHOLD ? 'animate-spin' : ''}`}
+            style={{ animationDuration: '0.7s' }} />
           <span className="text-xs font-semibold text-stone-600">
             {pullDelta >= PULL_THRESHOLD ? 'Refreshing…' : 'Pull to refresh'}
           </span>
@@ -173,19 +173,52 @@ export default function TripsPage() {
         </button>
       </div>
 
-      {/* Search & Filters */}
+      {/* Location filter bar */}
+      <div className="mb-3">
+        <LocationFilterBar
+          activeFilter={activeFilter}
+          onFilter={setActiveFilter}
+          loc={{ ...loc, nearbyCities: loc.nearbyCities }}
+          onDetect={loc.detect}
+          onCityChange={loc.setCity}
+          onRangeChange={loc.setRange}
+          onClear={loc.clear}
+          resultCount={activeFilter !== 'all' ? filteredTrips.length : undefined}
+        />
+      </div>
+
+      {/* Route + Date search */}
       <div className="space-y-2 mb-4">
-        <div className="flex gap-2">
-          <input className="input-field flex-1" placeholder="From city"
-            value={search.from} onChange={e => setSearch(s => ({ ...s, from: e.target.value }))} />
-          <input className="input-field flex-1" placeholder="To city"
-            value={search.to} onChange={e => setSearch(s => ({ ...s, to: e.target.value }))} />
+        {/* Popular cities quick-select */}
+        <div className="overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
+          <div className="flex gap-1.5">
+            <span className="text-[10px] text-stone-400 font-semibold uppercase tracking-wide self-center shrink-0">Quick:</span>
+            {POPULAR_CITIES.slice(0, 12).map(city => (
+              <button key={city}
+                onClick={() => setSearch(s => ({ ...s, from: city }))}
+                className={`shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                  search.from === city
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-stone-100 text-stone-600 hover:bg-orange-50 hover:text-orange-600'
+                }`}
+              >
+                {city}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex gap-2 items-center">
+
+        <div className="flex gap-2">
+          <input className="input-field flex-1" placeholder="From city" value={search.from}
+            onChange={e => setSearch(s => ({ ...s, from: e.target.value }))} />
+          <input className="input-field flex-1" placeholder="To city" value={search.to}
+            onChange={e => setSearch(s => ({ ...s, to: e.target.value }))} />
+        </div>
+        <div className="flex gap-2">
           <div className="relative flex-1">
             <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
-            <input type="date" className="input-field pl-8 text-sm" min={today}
-              value={search.date} onChange={e => setSearch(s => ({ ...s, date: e.target.value }))} />
+            <input type="date" className="input-field pl-8 text-sm" min={today} value={search.date}
+              onChange={e => setSearch(s => ({ ...s, date: e.target.value }))} />
           </div>
           <button onClick={fetchTrips} className="btn-primary px-4 py-2.5 flex items-center gap-1.5 text-sm">
             <Search size={13} /> Search
@@ -198,7 +231,7 @@ export default function TripsPage() {
           <div className="flex gap-1.5 flex-wrap">
             {activeFilters.map(f => (
               <button key={f.key} onClick={() => clearFilter(f.key)}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-100 transition-colors">
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-orange-50 text-orange-600 border border-orange-200">
                 {f.label} <X size={9} />
               </button>
             ))}
@@ -220,93 +253,89 @@ export default function TripsPage() {
 
       {/* All Travellers tab */}
       {tab === 'all' && (
-        loading
-          ? <TripSkeletons count={3} />
-          : trips.length === 0
-            ? (
-              <div className="card p-8 text-center animate-fade-in">
-                <div className="text-3xl mb-2">✈️</div>
-                <p className="text-stone-600 text-sm font-semibold mb-1">No travellers found</p>
-                {activeFilters.length > 0 && (
-                  <button onClick={clearAll} className="text-orange-500 text-xs font-semibold mt-1">
-                    Clear filters and try again
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {activeFilters.length > 0 && (
-                  <p className="text-xs text-stone-400">{trips.length} traveller{trips.length !== 1 ? 's' : ''} found</p>
-                )}
-                {renderStaggered(trips, trip => <TripCard trip={trip} />)}
-              </div>
-            )
+        loading ? <TripSkeletons count={3} /> :
+        filteredTrips.length === 0 ? (
+          <div className="card p-8 text-center animate-fade-in">
+            <div className="text-3xl mb-2">✈️</div>
+            <p className="text-stone-600 text-sm font-semibold mb-1">
+              {activeFilter === 'nearby' && loc.city
+                ? `No travellers found near ${loc.city}`
+                : 'No travellers found'}
+            </p>
+            {activeFilter !== 'all' && (
+              <button onClick={() => setActiveFilter('all')} className="text-orange-500 text-xs font-semibold mt-1">
+                Show all routes
+              </button>
+            )}
+            {activeFilters.length > 0 && activeFilter === 'all' && (
+              <button onClick={clearAll} className="text-orange-500 text-xs font-semibold mt-1">
+                Clear filters
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {(activeFilters.length > 0 || activeFilter !== 'all') && (
+              <p className="text-xs text-stone-400">
+                {filteredTrips.length} traveller{filteredTrips.length !== 1 ? 's' : ''}
+                {activeFilter === 'nearby' && loc.city ? ` near ${loc.city}` : ''}
+              </p>
+            )}
+            {renderStaggered(filteredTrips, trip => <TripCard trip={trip} />)}
+          </div>
+        )
       )}
 
       {/* My Trips tab */}
       {tab === 'mine' && (
-        loading
-          ? <TripSkeletons count={2} />
-          : (
-            <div className="space-y-4">
-              {futureMyTrips.length === 0 ? (
-                <div className="card p-6 text-center animate-fade-in">
-                  <div className="text-2xl mb-2">✈️</div>
-                  <p className="text-stone-600 text-sm font-semibold">No upcoming trips</p>
-                  <button onClick={() => authGate(() => setShowModal(true))}
-                    className="text-orange-500 text-xs font-semibold mt-2 block mx-auto">
-                    + Post your first trip
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {renderStaggered(futureMyTrips, trip => (
-                    <TripCard
-                      trip={trip}
-                      showDelete={isOwner(trip)}
-                      onDelete={() => handleDelete(trip._id)}
-                      onEdit={isOwner(trip) ? () => setEditingTrip(trip) : undefined}
-                      onMarkFull={isOwner(trip) ? () => handleMarkFull(trip._id) : undefined}
-                    />
-                  ))}
-                </div>
-              )}
+        loading ? <TripSkeletons count={2} /> : (
+          <div className="space-y-4">
+            {futureMyTrips.length === 0 ? (
+              <div className="card p-6 text-center animate-fade-in">
+                <div className="text-2xl mb-2">✈️</div>
+                <p className="text-stone-600 text-sm font-semibold">No upcoming trips</p>
+                <button onClick={() => authGate(() => setShowModal(true))}
+                  className="text-orange-500 text-xs font-semibold mt-2 block mx-auto">
+                  + Post your first trip
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {renderStaggered(futureMyTrips, trip => (
+                  <TripCard trip={trip}
+                    showDelete={isOwner(trip)}
+                    onDelete={() => handleDelete(trip._id)}
+                    onEdit={isOwner(trip) ? () => setEditingTrip(trip) : undefined}
+                    onMarkFull={isOwner(trip) ? () => handleMarkFull(trip._id) : undefined}
+                  />
+                ))}
+              </div>
+            )}
 
-              {pastMyTrips.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <History size={13} className="text-stone-400" />
-                    <span className="text-xs font-semibold text-stone-400 uppercase tracking-wide">Travel History</span>
-                    <div className="flex-1 h-px bg-stone-100" />
-                    <span className="text-[11px] text-stone-400">{pastMyTrips.length} past trip{pastMyTrips.length !== 1 ? 's' : ''}</span>
-                  </div>
-                  <div className="space-y-2">
-                    {renderStaggered(pastMyTrips, trip => <TripCard trip={trip} isPast />)}
-                  </div>
+            {pastMyTrips.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <History size={13} className="text-stone-400" />
+                  <span className="text-xs font-semibold text-stone-400 uppercase tracking-wide">Travel History</span>
+                  <div className="flex-1 h-px bg-stone-100" />
+                  <span className="text-[11px] text-stone-400">{pastMyTrips.length} past</span>
                 </div>
-              )}
-            </div>
-          )
+                <div className="space-y-2">
+                  {renderStaggered(pastMyTrips, trip => <TripCard trip={trip} isPast />)}
+                </div>
+              </div>
+            )}
+          </div>
+        )
       )}
 
       {showModal && (
-        <PostTripModal
-          onClose={() => setShowModal(false)}
-          onSuccess={trip => {
-            setMyTrips(prev => [trip, ...prev]);
-            setTrips(prev => [trip, ...prev]);
-            setShowModal(false);
-          }}
-        />
+        <PostTripModal onClose={() => setShowModal(false)}
+          onSuccess={trip => { setMyTrips(prev => [trip, ...prev]); setTrips(prev => [trip, ...prev]); setShowModal(false); }} />
       )}
-
       {editingTrip && (
-        <PostTripModal
-          initialData={editingTrip}
-          tripId={editingTrip._id}
-          onClose={() => setEditingTrip(null)}
-          onSuccess={handleEditSuccess}
-        />
+        <PostTripModal initialData={editingTrip} tripId={editingTrip._id}
+          onClose={() => setEditingTrip(null)} onSuccess={handleEditSuccess} />
       )}
     </div>
   );

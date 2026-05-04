@@ -13,6 +13,11 @@ router.get('/', async (req, res) => {
     if (status) filter.status = status;
     else filter.status = 'open';
 
+    // Hide parcels older than 30 days from the public listing (they expire automatically)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    filter.createdAt = { $gte: thirtyDaysAgo };
+
     if (from) filter.fromCity = { $regex: new RegExp(from, 'i') };
     if (to) filter.toCity = { $regex: new RegExp(to, 'i') };
 
@@ -173,13 +178,22 @@ router.patch('/:id', protect, async (req, res) => {
     const parcel = await Parcel.findById(req.params.id);
     if (!parcel) return res.status(404).json({ message: 'Parcel not found' });
 
-    const isOwner = parcel.userId.toString() === req.user._id.toString();
+    const isOwner    = parcel.userId.toString() === req.user._id.toString();
     const isTraveler = parcel.travelerId?.toString() === req.user._id.toString();
     if (!isOwner && !isTraveler) return res.status(403).json({ message: 'Not authorized' });
 
-    const allowedFields = ['offeredPrice', 'description', 'notes'];
-    for (const key of allowedFields) {
-      if (req.body[key] !== undefined) parcel[key] = req.body[key];
+    if (isOwner && parcel.status === 'open') {
+      // Owner can fully edit while parcel is still open (not yet accepted by anyone)
+      const ownerFields = ['fromCity', 'toCity', 'weight', 'itemType', 'description', 'pickupStation', 'dropStation', 'offeredPrice'];
+      for (const key of ownerFields) {
+        if (req.body[key] !== undefined) parcel[key] = req.body[key];
+      }
+    } else {
+      // Limited edits only (price negotiation, notes) when accepted or beyond
+      const limitedFields = ['offeredPrice', 'description'];
+      for (const key of limitedFields) {
+        if (req.body[key] !== undefined) parcel[key] = req.body[key];
+      }
     }
     await parcel.save();
     res.json({ parcel });

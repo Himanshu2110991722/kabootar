@@ -8,7 +8,8 @@ import ParcelCard from '../components/ParcelCard';
 import PostTripModal from '../components/PostTripModal';
 import PostParcelModal from '../components/PostParcelModal';
 import { TripCardSkeleton, ParcelCardSkeleton } from '../components/SkeletonCard';
-import { Send, Package, ArrowRight, AlertTriangle, ChevronRight } from 'lucide-react';
+import { Send, Package, ArrowRight, AlertTriangle, ChevronRight, MapPin } from 'lucide-react';
+import { useLocationFilter } from '../hooks/useLocationFilter';
 
 // ── Animated counter — counts from 0 to target when element enters viewport ──
 function CountUp({ value, decimals = 0 }) {
@@ -81,6 +82,8 @@ export default function Dashboard() {
 
   const [showTripModal,   setShowTripModal]   = useState(false);
   const [showParcelModal, setShowParcelModal] = useState(false);
+  const [nearMeOn,        setNearMeOn]        = useState(false);
+  const loc = useLocationFilter();
 
   // load public feeds on mount
   useEffect(() => {
@@ -107,6 +110,20 @@ export default function Dashboard() {
   const activeTripsCount  = myTrips.filter(t => t.status === 'active').length;
   const pendingParcelsCount = myParcels.filter(p => ['open','requested'].includes(p.status)).length;
   const pct = calcPct(user);
+
+  // Near Me toggle — filter recent feeds by detected city
+  const toggleNearMe = async () => {
+    if (nearMeOn) { setNearMeOn(false); loc.clear(); return; }
+    if (!loc.city) {
+      const city = await loc.detect();
+      if (city) setNearMeOn(true);
+    } else {
+      setNearMeOn(true);
+    }
+  };
+
+  const nearMeTrips   = nearMeOn && loc.enabled ? recentTrips.filter(t => loc.matchesNearby(t.fromCity, t.toCity)) : recentTrips;
+  const nearMeParcels = nearMeOn && loc.enabled ? recentParcels.filter(p => loc.matchesNearby(p.fromCity, p.toCity)) : recentParcels;
 
   const routeFrom = user?.frequentRoute?.from?.toLowerCase();
   const pendingParcelsOnRoute = routeFrom
@@ -238,19 +255,32 @@ export default function Dashboard() {
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-bold text-stone-900">Recent Travellers</h2>
-          <button onClick={() => navigate('/trips')} className="text-orange-500 text-xs font-semibold flex items-center gap-1">
-            See all <ArrowRight size={12} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={toggleNearMe}
+              className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-xl transition-all ${
+                nearMeOn
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
+              }`}
+              title={nearMeOn ? `Showing near ${loc.city}` : 'Filter by your location'}
+            >
+              {loc.loading ? <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <MapPin size={11} />}
+              {nearMeOn && loc.city ? loc.city : 'Near Me'}
+            </button>
+            <button onClick={() => navigate('/trips')} className="text-orange-500 text-xs font-semibold flex items-center gap-1">
+              See all <ArrowRight size={12} />
+            </button>
+          </div>
         </div>
         {loadingTrips ? (
           <div className="space-y-2">
             {[0,1,2].map(i => <TripCardSkeleton key={i} delay={i * 80} />)}
           </div>
-        ) : recentTrips.length === 0 ? (
-          <Empty text="No trips posted yet" />
+        ) : nearMeTrips.length === 0 ? (
+          <Empty text={nearMeOn && loc.city ? `No travellers near ${loc.city} right now` : 'No trips posted yet'} />
         ) : (
           <div className="space-y-2">
-            {recentTrips.map((t, i) => (
+            {nearMeTrips.map((t, i) => (
               <div key={t._id} style={{ animation: 'staggerIn 0.35s ease both', animationDelay: `${i * 60}ms` }}>
                 <TripCard trip={t} />
               </div>
@@ -271,11 +301,11 @@ export default function Dashboard() {
           <div className="space-y-2">
             {[0,1,2].map(i => <ParcelCardSkeleton key={i} delay={i * 80} />)}
           </div>
-        ) : recentParcels.length === 0 ? (
-          <Empty text="No parcel requests yet" />
+        ) : nearMeParcels.length === 0 ? (
+          <Empty text={nearMeOn && loc.city ? `No parcel requests near ${loc.city} right now` : 'No parcel requests yet'} />
         ) : (
           <div className="space-y-2">
-            {recentParcels.map((p, i) => (
+            {nearMeParcels.map((p, i) => (
               <div key={p._id} style={{ animation: 'staggerIn 0.35s ease both', animationDelay: `${i * 60}ms` }}>
                 <ParcelCard parcel={p} />
               </div>

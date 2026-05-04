@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { formatDistanceToNow } from 'date-fns';
-import { MapPin, Trash2, MessageCircle, Star, Zap, CheckCircle, IndianRupee } from 'lucide-react';
+import { MapPin, Trash2, MessageCircle, Star, Zap, CheckCircle, IndianRupee, Edit2 } from 'lucide-react';
 
 const ITEM_EMOJI = { documents: '📄', electronics: '📱', clothes: '👕', others: '📦' };
 const ITEM_LABEL = { documents: 'Documents', electronics: 'Electronics', clothes: 'Clothes', others: 'Other item' };
@@ -52,7 +52,7 @@ function SenderAvatar({ user }) {
   );
 }
 
-export default function ParcelCard({ parcel, showDelete, onDelete, onFindMatch }) {
+export default function ParcelCard({ parcel, showDelete, onDelete, onFindMatch, onEdit }) {
   const { user }   = useAuth();
   const navigate   = useNavigate();
   const authGate   = useAuthGate();
@@ -153,6 +153,13 @@ https://app.kabutar.in`
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            {/* Edit — only for own open parcels */}
+            {onEdit && isOwn && parcel.status === 'open' && (
+              <button onClick={onEdit}
+                className="bg-stone-50 border border-stone-200 rounded-xl px-2.5 py-1.5 flex items-center gap-1 text-xs font-semibold text-stone-600 hover:bg-stone-100 transition-colors">
+                <Edit2 size={12} /> Edit
+              </button>
+            )}
             {showDelete && (
               <button onClick={onDelete}
                 className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center text-red-400 hover:bg-red-100 transition-colors">
