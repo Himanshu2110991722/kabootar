@@ -4,4 +4,6 @@
     <string name="title_activity_main">Kabutar</string>
     <string name="package_name">in.kabutar.app</string>
     <string name="custom_url_scheme">in.kabutar.app</string>
+    <!-- Google Sign-In web client ID — required by capacitor-google-auth plugin -->
+    <string name="server_client_id">705500228139-epbriuarbpoqhpgb3051efn4kgevidvt.apps.googleusercontent.com</string>
 </resources>

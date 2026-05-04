@@ -4,17 +4,11 @@ const config: CapacitorConfig = {
   appId: 'in.kabutar.app',
   appName: 'Kabutar',
   webDir: 'dist',
-  server: {
-    // Remove this block when building for production APK
-    // Uncomment ONLY for live-reload during development:
-    // url: 'http://192.168.X.X:5173',
-    // cleartext: true,
-  },
   android: {
     allowMixedContent: false,
     captureInput: true,
-    webContentsDebuggingEnabled: false, // set true only when debugging
-    backgroundColor: '#f97316',          // orange — matches splash screen
+    webContentsDebuggingEnabled: false,
+    backgroundColor: '#f97316',
   },
   plugins: {
     SplashScreen: {
@@ -27,6 +21,13 @@ const config: CapacitorConfig = {
     StatusBar: {
       style: 'LIGHT',
       backgroundColor: '#f97316',
+    },
+    // Native Google Sign-In — replaces signInWithPopup which breaks in Android WebView
+    GoogleAuth: {
+      scopes: ['profile', 'email'],
+      // Web client ID (type 3) from google-services.json
+      serverClientId: '705500228139-epbriuarbpoqhpgb3051efn4kgevidvt.apps.googleusercontent.com',
+      forceCodeForRefreshToken: true,
     },
   },
 };
