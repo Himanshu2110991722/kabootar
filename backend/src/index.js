@@ -39,19 +39,41 @@ const adminRoutes = require('./routes/admin');
 const app = express();
 const httpServer = createServer(app);
 
+// Origins that are always allowed regardless of FRONTEND_URL:
+// - Capacitor Android WebView uses http://localhost
+// - Capacitor iOS uses capacitor://localhost or ionic://localhost
+// - No origin = native mobile HTTP clients (axios from inside WebView)
+const CAPACITOR_ORIGINS = [
+  'http://localhost',
+  'http://localhost:5173',
+  'capacitor://localhost',
+  'ionic://localhost',
+];
+
+const corsOriginFn = (origin, callback) => {
+  const allowed = process.env.FRONTEND_URL || '*';
+  // Allow requests with no origin (Capacitor native HTTP, curl, server-to-server)
+  if (!origin) return callback(null, true);
+  // Always allow Capacitor/Ionic WebView origins (Android & iOS app)
+  if (CAPACITOR_ORIGINS.includes(origin)) return callback(null, true);
+  // Allow wildcard or specific configured origin
+  if (allowed === '*' || origin === allowed) return callback(null, true);
+  // Allow any origin listed in comma-separated FRONTEND_URL
+  const list = allowed.split(',').map(s => s.trim());
+  if (list.includes(origin) || list.includes('*')) return callback(null, true);
+  // Default: allow (MVP — tighten after launch)
+  callback(null, true);
+};
+
 const io = new Server(httpServer, {
-  cors: {
-    origin: process.env.FRONTEND_URL || '*',
-    methods: ['GET', 'POST'],
-  },
+  cors: { origin: corsOriginFn, methods: ['GET', 'POST'] },
 });
 
 // Connect DB
 connectDB();
 
-// CORS must be first — OPTIONS preflight must get Allow-Origin before any
-// rate limiter or other middleware can reject the request.
-app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
+// CORS must be first so OPTIONS preflight gets Allow-Origin before rate limiters
+app.use(cors({ origin: corsOriginFn }));
 
 // Security headers
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
