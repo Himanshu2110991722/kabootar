@@ -131,7 +131,7 @@ app.get('/health', (_req, res) => res.json({ status: 'ok', app: 'kabootar', ts: 
 // Uses built-in https module — no fetch() required, works on all Node.js versions.
 if (process.env.RENDER) {
   const https = require('https');
-  const SELF_HOST = process.env.RENDER_EXTERNAL_HOSTNAME || 'kabootar-backend.onrender.com';
+  const SELF_HOST = process.env.RENDER_EXTERNAL_HOSTNAME || 'kabootar-1.onrender.com';
 
   const ping = () => {
     https.get(`https://${SELF_HOST}/health`, (res) => {
