@@ -127,18 +127,20 @@ app.use('/api/admin', adminRoutes);
 // Health check — also used as a keep-alive ping endpoint
 app.get('/health', (_req, res) => res.json({ status: 'ok', app: 'kabootar', ts: Date.now() }));
 
-// Self-ping every 13 minutes to prevent Render free tier sleep (sleeps after 15 min idle)
-// Remove this if you upgrade to a paid Render plan
-if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
-  const SELF_URL = process.env.RENDER_EXTERNAL_URL
-    ? `${process.env.RENDER_EXTERNAL_URL}/health`
-    : null;
-  if (SELF_URL) {
-    setInterval(() => {
-      fetch(SELF_URL).catch(() => {}); // fire-and-forget
-    }, 13 * 60 * 1000); // every 13 minutes
-    console.log(`🔁 Keep-alive ping configured → ${SELF_URL}`);
-  }
+// Self-ping every 13 min to prevent Render free tier sleep (sleeps after 15 min idle).
+// Uses built-in https module — no fetch() required, works on all Node.js versions.
+if (process.env.RENDER) {
+  const https = require('https');
+  const SELF_HOST = process.env.RENDER_EXTERNAL_HOSTNAME || 'kabootar-backend.onrender.com';
+
+  const ping = () => {
+    https.get(`https://${SELF_HOST}/health`, (res) => {
+      res.resume(); // drain response
+    }).on('error', () => {}); // ignore errors silently
+  };
+
+  setInterval(ping, 13 * 60 * 1000); // every 13 minutes
+  console.log(`🔁 Keep-alive ping active → https://${SELF_HOST}/health`);
 }
 
 // Global error handler
