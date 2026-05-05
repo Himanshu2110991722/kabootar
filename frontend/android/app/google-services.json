@@ -7,14 +7,14 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:705500228139:android:56650893ba2e59d30ad86e",
+        "mobilesdk_app_id": "1:705500228139:android:8dd2f3cb812927310ad86e",
         "android_client_info": {
           "package_name": "in.kabutar.app"
         }
       },
       "oauth_client": [
         {
-          "client_id": "705500228139-3ih36g3esglvrk0amn4f8fg2eaghkcm9.apps.googleusercontent.com",
+          "client_id": "705500228139-v0dod4jd8b2jtf95jh2hbbs2ei6uvhsl.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "in.kabutar.app",

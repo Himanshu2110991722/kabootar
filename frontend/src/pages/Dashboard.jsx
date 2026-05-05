@@ -85,18 +85,28 @@ export default function Dashboard() {
   const [nearMeOn,        setNearMeOn]        = useState(false);
   const loc = useLocationFilter();
 
-  // load public feeds on mount
-  useEffect(() => {
-    api.get('/trips').then(r => {
-      setAllTrips(r.data.trips);
-      setRecentTrips(r.data.trips.slice(0, 3));
-    }).finally(() => setLoadingTrips(false));
+  const [tripsError,   setTripsError]   = useState(false);
+  const [parcelsError, setParcelsError] = useState(false);
 
-    api.get('/parcels').then(r => {
-      setAllParcels(r.data.parcels);
-      setRecentParcels(r.data.parcels.slice(0, 3));
-    }).finally(() => setLoadingParcels(false));
-  }, []);
+  const loadFeeds = () => {
+    setTripsError(false);
+    setParcelsError(false);
+    setLoadingTrips(true);
+    setLoadingParcels(true);
+
+    api.get('/trips')
+      .then(r => { setAllTrips(r.data.trips); setRecentTrips(r.data.trips.slice(0, 3)); })
+      .catch(() => setTripsError(true))
+      .finally(() => setLoadingTrips(false));
+
+    api.get('/parcels')
+      .then(r => { setAllParcels(r.data.parcels); setRecentParcels(r.data.parcels.slice(0, 3)); })
+      .catch(() => setParcelsError(true))
+      .finally(() => setLoadingParcels(false));
+  };
+
+  // load public feeds on mount
+  useEffect(() => { loadFeeds(); }, []);
 
   // load user's own trips/parcels when logged in
   useEffect(() => {
@@ -276,6 +286,8 @@ export default function Dashboard() {
           <div className="space-y-2">
             {[0,1,2].map(i => <TripCardSkeleton key={i} delay={i * 80} />)}
           </div>
+        ) : tripsError ? (
+          <RetryCard onRetry={loadFeeds} />
         ) : nearMeTrips.length === 0 ? (
           <Empty text={nearMeOn && loc.city ? `No travellers near ${loc.city} right now` : 'No trips posted yet'} />
         ) : (
@@ -301,6 +313,8 @@ export default function Dashboard() {
           <div className="space-y-2">
             {[0,1,2].map(i => <ParcelCardSkeleton key={i} delay={i * 80} />)}
           </div>
+        ) : parcelsError ? (
+          <RetryCard onRetry={loadFeeds} />
         ) : nearMeParcels.length === 0 ? (
           <Empty text={nearMeOn && loc.city ? `No parcel requests near ${loc.city} right now` : 'No parcel requests yet'} />
         ) : (
@@ -340,4 +354,18 @@ export default function Dashboard() {
 
 function Empty({ text }) {
   return <div className="card p-6 text-center text-stone-400 text-sm">{text}</div>;
+}
+
+function RetryCard({ onRetry }) {
+  return (
+    <div className="card p-5 text-center space-y-3">
+      <p className="text-sm text-stone-500">
+        🌐 Server is warming up — this takes about 30 seconds on first visit.
+      </p>
+      <button onClick={onRetry}
+        className="btn-primary px-6 py-2 text-sm flex items-center gap-2 mx-auto">
+        ↻ Retry
+      </button>
+    </div>
+  );
 }

@@ -124,8 +124,22 @@ app.use('/api/kyc', kycRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Health check
-app.get('/health', (_req, res) => res.json({ status: 'ok', app: 'kabootar' }));
+// Health check — also used as a keep-alive ping endpoint
+app.get('/health', (_req, res) => res.json({ status: 'ok', app: 'kabootar', ts: Date.now() }));
+
+// Self-ping every 13 minutes to prevent Render free tier sleep (sleeps after 15 min idle)
+// Remove this if you upgrade to a paid Render plan
+if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
+  const SELF_URL = process.env.RENDER_EXTERNAL_URL
+    ? `${process.env.RENDER_EXTERNAL_URL}/health`
+    : null;
+  if (SELF_URL) {
+    setInterval(() => {
+      fetch(SELF_URL).catch(() => {}); // fire-and-forget
+    }, 13 * 60 * 1000); // every 13 minutes
+    console.log(`🔁 Keep-alive ping configured → ${SELF_URL}`);
+  }
+}
 
 // Global error handler
 app.use((err, _req, res, _next) => {

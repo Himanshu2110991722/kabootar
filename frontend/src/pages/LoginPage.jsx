@@ -301,11 +301,11 @@ export default function LoginPage() {
               {loading ? 'Verifying your code…' : 'Fills automatically when all 6 digits are entered'}
             </p>
 
-            {/* flex-1 + aspect-square = equal-width squares that fit any screen */}
-            <div className="flex gap-1.5 w-full">
+            {/* Fixed 40×48 px boxes — never overflow on any screen size */}
+            <div className="flex gap-2 justify-center">
               {otp.map((d, i) => (
                 <input key={i} ref={el => (otpRefs.current[i] = el)}
-                  className={`flex-1 min-w-0 aspect-square text-center font-bold border-2 rounded-xl outline-none transition-all bg-white text-xl
+                  className={`w-10 h-12 shrink-0 text-center text-lg font-bold border-2 rounded-xl outline-none transition-all bg-white
                     ${d ? 'border-orange-400 bg-orange-50 text-orange-600' : 'border-stone-200 text-stone-900'}
                     ${loading ? 'opacity-50 pointer-events-none' : 'focus:border-orange-400 focus:ring-2 focus:ring-orange-100'}
                   `}

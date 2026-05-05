@@ -23,7 +23,9 @@
       "Bash(export JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\")",
       "Bash(export ANDROID_HOME=\"/c/Users/Himanshu/AppData/Local/Android/Sdk\")",
       "Bash(./gradlew --stop)",
-      "Bash(rm -rf ~/.gradle/caches/build-cache-*)"
+      "Bash(rm -rf ~/.gradle/caches/build-cache-*)",
+      "Bash(curl -s \"https://kabootar-backend.onrender.com/health\")",
+      "Bash(curl -s -I -X OPTIONS https://kabootar-backend.onrender.com/api/auth/verify -H 'Origin: http://localhost' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: Content-Type,Authorization')"
     ]
   }
 }

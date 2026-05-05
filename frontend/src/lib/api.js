@@ -1,8 +1,13 @@
 import axios from 'axios';
+import { Capacitor } from '@capacitor/core';
+
+// Render free tier cold-starts take up to 50 seconds.
+// Android app needs a longer timeout than a browser tab.
+const TIMEOUT = Capacitor.isNativePlatform() ? 60000 : 15000;
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
-  timeout: 10000,
+  timeout: TIMEOUT,
 });
 
 // Attach JWT token to every request

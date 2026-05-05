@@ -16,6 +16,13 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (idToken, name = null) => {
     setLoading(true);
+    // Show a "slow server" hint after 8 seconds (Render cold-start can take ~50s)
+    const slowTimer = setTimeout(() => {
+      import('react-hot-toast').then(({ default: toast }) => {
+        toast.loading('Server is waking up… please wait', { id: 'slow-server', duration: 45000 });
+      });
+    }, 8000);
+
     try {
       const { data } = await api.post('/auth/verify', { idToken, name });
       localStorage.setItem('kabootar_token', data.token);
@@ -24,10 +31,19 @@ export const AuthProvider = ({ children }) => {
       connectSocket(data.user._id);
       return { success: true, user: data.user, requiresProfileCompletion: data.requiresProfileCompletion };
     } catch (err) {
-      const msg = err.response?.data?.message || 'Login failed';
+      // Distinguish timeout from CORS/auth errors
+      const isTimeout = err.code === 'ECONNABORTED' || err.message?.includes('timeout');
+      const isCors    = !err.response && !isTimeout;
+      const msg = isTimeout
+        ? 'Server took too long — it may have been sleeping. Try again in a moment.'
+        : isCors
+          ? 'Cannot reach server. Check your internet connection.'
+          : err.response?.data?.message || 'Login failed';
       const isNewUser = err.response?.data?.newUser;
       return { success: false, message: msg, newUser: isNewUser };
     } finally {
+      clearTimeout(slowTimer);
+      import('react-hot-toast').then(({ default: toast }) => toast.dismiss('slow-server'));
       setLoading(false);
     }
   };
