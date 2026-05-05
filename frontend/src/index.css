@@ -12,6 +12,14 @@
     @apply bg-stone-50 text-stone-900 antialiased;
     font-family: 'Sora', sans-serif;
   }
+
+  /* Edge-to-edge on Android/iOS — expose safe area insets as CSS vars */
+  :root {
+    --sat: env(safe-area-inset-top, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+  }
 }
 
 @layer components {
