@@ -94,10 +94,10 @@ const generalLimiter = rateLimit({
 });
 app.use('/api/', generalLimiter);
 
-// Strict limit on auth: 20 attempts per hour per IP (5 was too low for dev/testing)
+// Auth rate limit: 50 per hour (generous for dev/testing; tighten after launch)
 const authLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 20,
+  max: 50,
   message: { message: 'Too many login attempts, please try again in an hour.' },
   standardHeaders: true,
   legacyHeaders: false,
