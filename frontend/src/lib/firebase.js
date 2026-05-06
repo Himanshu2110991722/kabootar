@@ -1,6 +1,5 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -12,13 +11,13 @@ const firebaseConfig = {
 };
 
 const app  = initializeApp(firebaseConfig);
-export const auth    = getAuth(app);
-export const storage = getStorage(app);
+export const auth = getAuth(app);
 
-// Upload a File to Firebase Storage and return the public download URL.
-// Images persist permanently — not lost when the backend server restarts.
+// Lazy-initialize Storage so a missing/disabled bucket doesn't crash the app on startup
 export async function uploadImageToStorage(file, folder = 'profile-images') {
-  const ext      = file.name.split('.').pop() || 'jpg';
+  const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+  const storage  = getStorage(app);
+  const ext      = file.name?.split('.').pop() || 'jpg';
   const filename = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
   const fileRef  = ref(storage, filename);
   await uploadBytes(fileRef, file);
