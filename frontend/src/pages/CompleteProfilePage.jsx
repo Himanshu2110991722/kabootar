@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
+import { uploadImageToStorage } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import { Camera, Check } from 'lucide-react';
 
@@ -42,11 +43,10 @@ export default function CompleteProfilePage() {
     if (!canSubmit) return;
     setSaving(true);
     try {
-      // Upload photo first if new file selected
+      // Upload photo to Firebase Storage (persists permanently)
       if (photoFile) {
-        const fd = new FormData();
-        fd.append('image', photoFile);
-        await api.post('/auth/me/image', fd);
+        const imageUrl = await uploadImageToStorage(photoFile, 'profile-images');
+        await api.post('/auth/me/image', { imageUrl });
       }
       // Save name + phone
       await api.patch('/auth/me', { name: name.trim(), phone: `+91${phone}` });

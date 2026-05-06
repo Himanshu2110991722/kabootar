@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from
 import { Toaster } from 'react-hot-toast';
 import { Capacitor } from '@capacitor/core';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import Onboarding from './components/Onboarding';
 import Layout from './components/Layout';
 import SplashScreen from './components/SplashScreen';
 import LoginPage from './pages/LoginPage';
@@ -96,9 +97,17 @@ export default function App() {
     return false;
   });
 
+  // Show onboarding once on very first launch
+  const [onboardingDone, setOnboardingDone] = useState(
+    () => !!localStorage.getItem('kabutar_onboarded')
+  );
+
   return (
     <>
       {!splashDone && <SplashScreen onDone={() => setSplashDone(true)} />}
+      {splashDone && !onboardingDone && (
+        <Onboarding onDone={() => setOnboardingDone(true)} />
+      )}
 
       <BrowserRouter>
         <AuthProvider>

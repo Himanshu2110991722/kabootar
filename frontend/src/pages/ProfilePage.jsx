@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
+import { uploadImageToStorage } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import {
   Star, Phone, LogOut, ChevronRight, Package, Send,
@@ -57,14 +58,17 @@ export default function ProfilePage() {
     if (file.size > 4 * 1024 * 1024) { toast.error('Image must be under 4 MB'); return; }
     setUploadingPhoto(true);
     try {
-      const fd = new FormData();
-      fd.append('image', file);
-      const { data } = await api.post('/auth/me/image', fd);
+      // Upload to Firebase Storage — persists permanently unlike Render's disk
+      const imageUrl = await uploadImageToStorage(file, 'profile-images');
+      const { data } = await api.post('/auth/me/image', { imageUrl });
       const updated = { ...user, profileImage: data.user.profileImage };
       localStorage.setItem('kabootar_user', JSON.stringify(updated));
       setUser(updated);
       toast.success('Profile photo saved!');
-    } catch { toast.error('Failed to upload photo'); }
+    } catch (err) {
+      toast.error('Upload failed — make sure Firebase Storage is enabled');
+      console.error('Photo upload:', err);
+    }
     finally { setUploadingPhoto(false); e.target.value = ''; }
   };
 

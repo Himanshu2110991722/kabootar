@@ -77,7 +77,7 @@ export default function SplashScreen({ onDone }) {
         }}
       >
         <p className="text-orange-100 text-sm font-medium text-center mt-2 tracking-wide">
-          Send parcels. Earn by traveling.
+          Same route. Shared journey.
         </p>
       </div>
 
