@@ -27,6 +27,7 @@ export default function LoginPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [idToken, setIdToken]       = useState(null);
   const [resendTimer, setResendTimer] = useState(0);
+  const [otpStatus,   setOtpStatus]   = useState(''); // status while sending
 
   // Android native: stores verificationId string from @capacitor-firebase/authentication
   const [verificationId, setVerificationId] = useState(null);
@@ -97,49 +98,71 @@ export default function LoginPage() {
     if (fullPhone.replace(/\D/g, '').length < 10) {
       toast.error('Enter a valid 10-digit mobile number'); return;
     }
-    setLoading(true);
-    try {
-      if (isNativeApp) {
-        // ── Android native: uses SafetyNet/Play Integrity — NO reCAPTCHA ──
+
+    if (isNativeApp) {
+      // ── Android native path — completely separate, no finally ──
+      setLoading(true);
+      setOtpStatus('Verifying your device…');
+      // After 3s, hint that a browser verification may appear
+      const hintTimer = setTimeout(() => setOtpStatus('Complete the browser step if it appears…'), 3000);
+
+      try {
         const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
-        const result = await FirebaseAuthentication.signInWithPhoneNumber({
-          phoneNumber: fullPhone,
-          timeout: 60,
-        });
+        let codeSentHandle, autoHandle;
+        const cleanup = () => { codeSentHandle?.remove?.(); autoHandle?.remove?.(); clearTimeout(hintTimer); };
 
-        setVerificationId(result.verificationId);
-
-        if (result.verificationCode) {
-          // Android auto-read the SMS — verify immediately, no manual entry
-          toast.success('SMS auto-detected! Verifying…');
-          const code = result.verificationCode;
-          const digits = code.split('');
-          setOtp(digits);
-          setStep(STEPS.OTP);
-          setTimeout(() => verifyNative(result.verificationId, code), 300);
-        } else {
+        codeSentHandle = await FirebaseAuthentication.addListener('phoneCodeSent', (ev) => {
+          cleanup();
+          setVerificationId(ev.verificationId);
+          setOtpStatus('');
           setStep(STEPS.OTP);
           startResendTimer();
+          setLoading(false);
           toast.success('OTP sent to ' + fullPhone);
-        }
-      } else {
-        // ── Web: JS SDK with invisible reCAPTCHA ──
-        try { window.recaptchaVerifier?.clear?.(); } catch {}
-        window.recaptchaVerifier = new RecaptchaVerifier(
-          auth, 'recaptcha-container', { size: 'invisible' }
-        );
-        const result = await signInWithPhoneNumber(auth, fullPhone, window.recaptchaVerifier);
-        setConfirmResult(result);
-        setStep(STEPS.OTP);
-        startResendTimer();
-        toast.success('OTP sent to ' + fullPhone);
+        });
+
+        autoHandle = await FirebaseAuthentication.addListener('phoneVerificationCompleted', (ev) => {
+          cleanup();
+          const code = ev.verificationCode || '';
+          const vid  = ev.verificationId  || '';
+          setOtpStatus('');
+          setLoading(false);
+          if (code && vid) {
+            setVerificationId(vid);
+            setOtp(code.split(''));
+            setStep(STEPS.OTP);
+            toast.success('SMS auto-detected! Verifying…');
+            setTimeout(() => verifyNative(vid, code), 300);
+          }
+        });
+
+        await FirebaseAuthentication.signInWithPhoneNumber({ phoneNumber: fullPhone, timeout: 60 });
+        // loading stays true; events above call setLoading(false)
+      } catch (err) {
+        clearTimeout(hintTimer);
+        setLoading(false);
+        setOtpStatus('');
+        toast.error(`OTP error: ${err.code || err.message}`);
       }
+      return; // never fall through to web path
+    }
+
+    // ── Web path ──
+    setLoading(true);
+    try {
+      try { window.recaptchaVerifier?.clear?.(); } catch {}
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
+      const result = await signInWithPhoneNumber(auth, fullPhone, window.recaptchaVerifier);
+      setConfirmResult(result);
+      setStep(STEPS.OTP);
+      startResendTimer();
+      toast.success('OTP sent to ' + fullPhone);
     } catch (err) {
-      if (!isNativeApp) { try { window.recaptchaVerifier?.clear?.(); } catch {} window.recaptchaVerifier = null; }
+      try { window.recaptchaVerifier?.clear?.(); } catch {}
+      window.recaptchaVerifier = null;
       const msg =
-        err.code === 'auth/invalid-phone-number'  ? 'Invalid phone number.' :
-        err.code === 'auth/too-many-requests'      ? 'Too many attempts — try later.' :
-        err.code === 'auth/invalid-app-credential' ? 'App verification failed. Use test number.' :
+        err.code === 'auth/invalid-phone-number' ? 'Invalid phone number.' :
+        err.code === 'auth/too-many-requests'     ? 'Too many attempts — try later.' :
         `OTP error: ${err.code || err.message}`;
       toast.error(msg);
     } finally { setLoading(false); }
@@ -301,6 +324,19 @@ export default function LoginPage() {
               onClick={sendOtp} disabled={loading || phone.length < 10}>
               {loading ? <Spinner /> : <><span>Send OTP</span><ArrowRight size={17} /></>}
             </button>
+
+            {/* Status message while OTP is being sent (Android native path) */}
+            {loading && otpStatus && (
+              <div className="flex flex-col items-center gap-2 py-2 animate-fade-in">
+                <p className="text-sm text-stone-500 text-center font-medium">{otpStatus}</p>
+                <div className="flex gap-1">
+                  {[0,1,2].map(i => (
+                    <div key={i} className="w-1.5 h-1.5 rounded-full bg-orange-400"
+                      style={{ animation: `bounce 1s ease-in-out ${i * 0.2}s infinite` }} />
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
 

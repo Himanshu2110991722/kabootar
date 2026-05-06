@@ -1,13 +1,32 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { Home, Send, Package, MessageCircle, User, LogIn } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAuthGate } from '../hooks/useAuthGate';
+import api from '../lib/api';
+import { getSocket } from '../lib/socket';
 
 export default function Layout() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const authGate = useAuthGate();
+  const [unread, setUnread] = useState(0);
+
+  // Load unread count when user is logged in
+  useEffect(() => {
+    if (!user) { setUnread(0); return; }
+    const load = () => api.get('/chat/conversations').then(r => {
+      const total = r.data.conversations.reduce((s, c) => s + (c.unreadCount || 0), 0);
+      setUnread(total);
+    }).catch(() => {});
+    load();
+    // Also update via socket when new message arrives
+    const socket = getSocket();
+    const onMsg = () => load();
+    socket.on('receive_message', onMsg);
+    return () => socket.off('receive_message', onMsg);
+  }, [user]);
 
   return (
     <div className="min-h-screen flex flex-col max-w-lg mx-auto bg-stone-50 relative">
@@ -80,12 +99,19 @@ export default function Layout() {
           </NavLink>
 
           <button
-            onClick={() => authGate(() => navigate('/messages'))}
+            onClick={() => authGate(() => { setUnread(0); navigate('/messages'); })}
             className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-150 ${
               location.pathname === '/messages' || location.pathname.startsWith('/chat')
                 ? 'text-orange-500' : 'text-stone-400 hover:text-stone-600'}`}
           >
-            <MessageCircle size={20} strokeWidth={1.8} />
+            <div className="relative">
+              <MessageCircle size={20} strokeWidth={1.8} />
+              {unread > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 leading-none animate-pulse">
+                  {unread > 9 ? '9+' : unread}
+                </span>
+              )}
+            </div>
             <span className="text-[10px] font-medium">Chat</span>
           </button>
 
