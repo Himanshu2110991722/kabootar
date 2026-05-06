@@ -31,14 +31,25 @@ export const AuthProvider = ({ children }) => {
       connectSocket(data.user._id);
       return { success: true, user: data.user, requiresProfileCompletion: data.requiresProfileCompletion };
     } catch (err) {
-      // Distinguish timeout from CORS/auth errors
       const isTimeout = err.code === 'ECONNABORTED' || err.message?.includes('timeout');
-      const isCors    = !err.response && !isTimeout;
-      const msg = isTimeout
-        ? 'Server took too long — it may have been sleeping. Try again in a moment.'
-        : isCors
-          ? 'Cannot reach server. Check your internet connection.'
-          : err.response?.data?.message || 'Login failed';
+      const hasResponse = !!err.response;
+      const status = err.response?.status;
+      const serverMsg = err.response?.data?.message;
+
+      let msg;
+      if (isTimeout) {
+        msg = `Server timeout after 60s — tap retry in a moment`;
+      } else if (!hasResponse) {
+        msg = `Network blocked (CORS) — backend needs redeployment`;
+      } else if (status === 429) {
+        msg = `Too many attempts — wait 1 hour or restart the backend`;
+      } else if (status === 503) {
+        msg = `Server sleeping (503) — tap retry in 30 seconds`;
+      } else {
+        msg = serverMsg || `Server error ${status || '?'}`;
+      }
+
+      console.error('[login error]', { code: err.code, status, serverMsg, msg });
       const isNewUser = err.response?.data?.newUser;
       return { success: false, message: msg, newUser: isNewUser };
     } finally {

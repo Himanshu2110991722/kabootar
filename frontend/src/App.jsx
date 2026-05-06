@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { Capacitor } from '@capacitor/core';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import SplashScreen from './components/SplashScreen';
@@ -27,30 +28,66 @@ const PublicOnlyRoute = ({ children }) => {
   return !user ? children : <Navigate to="/" replace />;
 };
 
+// Handles Android hardware back button via React Router
+function AndroidBackHandler() {
+  const navigate  = useNavigate();
+  const location  = useLocation();
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    let unsub = null;
+
+    import('@capacitor/app').then(({ App }) => {
+      const ROOT_PATHS = ['/', '/login'];
+      const isRoot = () => ROOT_PATHS.includes(location.pathname);
+
+      const handler = App.addListener('backButton', ({ canGoBack }) => {
+        if (isRoot()) {
+          // At root — exit the app
+          App.exitApp();
+        } else {
+          // Elsewhere — go back in router history
+          navigate(-1);
+        }
+      });
+
+      unsub = handler;
+    });
+
+    return () => {
+      unsub?.then?.(h => h.remove()).catch(() => {});
+    };
+  }, [location.pathname, navigate]);
+
+  return null;
+}
+
 function AppRoutes() {
   return (
-    <Routes>
-      <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
-      <Route element={<Layout />}>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/trips" element={<TripsPage />} />
-        <Route path="/parcels" element={<ParcelsPage />} />
-        <Route path="/messages" element={<PrivateRoute><ChatListPage /></PrivateRoute>} />
-        <Route path="/chat/:userId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
-        <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
-        <Route path="/my-parcels" element={<PrivateRoute><MyParcelsPage /></PrivateRoute>} />
-        <Route path="/kyc" element={<PrivateRoute><KYCPage /></PrivateRoute>} />
-      </Route>
-      <Route path="/complete-profile" element={<CompleteProfilePage />} />
-      <Route path="/admin" element={<AdminPage />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <AndroidBackHandler />
+      <Routes>
+        <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
+        <Route element={<Layout />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/trips" element={<TripsPage />} />
+          <Route path="/parcels" element={<ParcelsPage />} />
+          <Route path="/messages" element={<PrivateRoute><ChatListPage /></PrivateRoute>} />
+          <Route path="/chat/:userId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
+          <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
+          <Route path="/my-parcels" element={<PrivateRoute><MyParcelsPage /></PrivateRoute>} />
+          <Route path="/kyc" element={<PrivateRoute><KYCPage /></PrivateRoute>} />
+        </Route>
+        <Route path="/complete-profile" element={<CompleteProfilePage />} />
+        <Route path="/admin" element={<AdminPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }
 
 export default function App() {
-  // Show splash on every fresh app open.
-  // In dev: only once per browser session to avoid annoyance during hot-reload.
   const [splashDone, setSplashDone] = useState(() => {
     if (import.meta.env.DEV) {
       if (sessionStorage.getItem('kabutar_splash_shown')) return true;
@@ -61,10 +98,8 @@ export default function App() {
 
   return (
     <>
-      {/* Splash screen — renders on top until animation completes */}
       {!splashDone && <SplashScreen onDone={() => setSplashDone(true)} />}
 
-      {/* Main app — renders immediately underneath so it's ready when splash exits */}
       <BrowserRouter>
         <AuthProvider>
           <AppRoutes />
