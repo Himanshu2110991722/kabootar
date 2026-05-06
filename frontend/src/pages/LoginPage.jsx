@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { auth } from '../lib/firebase';
 import {
   RecaptchaVerifier,
@@ -11,12 +11,11 @@ import { Capacitor } from '@capacitor/core';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Phone, ArrowRight, ChevronLeft, Shield } from 'lucide-react';
+import { Phone, ArrowRight, ChevronLeft, Shield, RotateCcw } from 'lucide-react';
 
-// true when running as native Android/iOS app via Capacitor
 const isNativeApp = Capacitor.isNativePlatform();
-
 const STEPS = { HOME: 'home', PHONE: 'phone', OTP: 'otp', NAME: 'name' };
+const RESEND_SECONDS = 30;
 
 export default function LoginPage() {
   const [step, setStep]               = useState(STEPS.HOME);
@@ -27,36 +26,39 @@ export default function LoginPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [confirmResult, setConfirmResult] = useState(null);
   const [idToken, setIdToken]         = useState(null);
+  const [resendTimer, setResendTimer] = useState(0); // countdown seconds
   const otpRefs = useRef([]);
+  const timerRef = useRef(null);
   const { login } = useAuth();
   const navigate   = useNavigate();
   const location   = useLocation();
 
-  const redirectAfterLogin = (res) => {
-    if (res?.requiresProfileCompletion) {
-      navigate('/complete-profile', { replace: true });
-    } else {
-      navigate(location.state?.from || '/', { replace: true });
-    }
+  // Clear timer on unmount
+  useEffect(() => () => clearInterval(timerRef.current), []);
+
+  const startResendTimer = () => {
+    setResendTimer(RESEND_SECONDS);
+    clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setResendTimer(t => {
+        if (t <= 1) { clearInterval(timerRef.current); return 0; }
+        return t - 1;
+      });
+    }, 1000);
   };
 
-  // After Firebase gives us a token, call our backend and redirect
+  const redirectAfterLogin = (res) => {
+    if (res?.requiresProfileCompletion) navigate('/complete-profile', { replace: true });
+    else navigate(location.state?.from || '/', { replace: true });
+  };
+
   const finishLogin = async (token, displayName = null) => {
     try {
       const res = await login(token, displayName);
-      if (res.success) {
-        toast.success('Welcome! 🕊️');
-        redirectAfterLogin(res);
-      } else if (res.newUser) {
-        setIdToken(token);
-        setName(displayName || '');
-        setStep(STEPS.NAME);
-      } else {
-        toast.error(res.message || 'Login failed. Check your connection.');
-      }
-    } catch {
-      toast.error('Could not reach server. Check your internet connection.');
-    }
+      if (res.success) { toast.success('Welcome! 🕊️'); redirectAfterLogin(res); }
+      else if (res.newUser) { setIdToken(token); setName(displayName || ''); setStep(STEPS.NAME); }
+      else toast.error(res.message || 'Login failed. Check your connection.');
+    } catch { toast.error('Could not reach server. Check your internet connection.'); }
   };
 
   // ── Google Sign-In ────────────────────────────────────────────────────────────
@@ -64,8 +66,6 @@ export default function LoginPage() {
     setGoogleLoading(true);
     try {
       if (isNativeApp) {
-        // Native Android/iOS — use capacitor-google-auth plugin
-        // This avoids the WebView popup/redirect issue entirely
         const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth');
         await GoogleAuth.initialize({
           clientId: '705500228139-epbriuarbpoqhpgb3051efn4kgevidvt.apps.googleusercontent.com',
@@ -78,30 +78,28 @@ export default function LoginPage() {
         const token      = await result.user.getIdToken();
         await finishLogin(token, result.user.displayName);
       } else {
-        // Web browser — use popup (works fine outside of WebView)
         const provider = new GoogleAuthProvider();
         const result   = await signInWithPopup(auth, provider);
         const token    = await result.user.getIdToken();
         await finishLogin(token, result.user.displayName);
       }
     } catch (err) {
-      if (
-        err.code !== 'auth/popup-closed-by-user' &&
-        err.message !== 'User cancelled.'
-      ) {
-        toast.error('Google sign-in failed — try phone OTP instead.');
-        console.error('Google auth error:', err.code, err.message);
-      }
+      const cancelled = err.code === 'auth/popup-closed-by-user' || err.message === 'User cancelled.';
+      if (!cancelled) toast.error(`Google: ${err.code || err.message || 'failed'}`);
     } finally { setGoogleLoading(false); }
   };
 
   // ── Phone OTP ─────────────────────────────────────────────────────────────────
-  const setupRecaptcha = () => {
-    if (!window.recaptchaVerifier) {
-      window.recaptchaVerifier = new RecaptchaVerifier(
-        auth, 'recaptcha-container', { size: 'invisible' }
-      );
-    }
+  const buildVerifier = () => {
+    try { window.recaptchaVerifier?.clear?.(); } catch {}
+    // On Android WebView, use 'normal' (visible checkbox) — invisible reCAPTCHA
+    // fails in WebViews and causes auth/invalid-app-credential.
+    // On web browser, use 'invisible' for smooth UX.
+    const size = isNativeApp ? 'normal' : 'invisible';
+    window.recaptchaVerifier = new RecaptchaVerifier(
+      auth, 'recaptcha-container', { size }
+    );
+    return window.recaptchaVerifier;
   };
 
   const sendOtp = async () => {
@@ -111,28 +109,33 @@ export default function LoginPage() {
     }
     setLoading(true);
     try {
-      setupRecaptcha();
-      const result = await signInWithPhoneNumber(auth, fullPhone, window.recaptchaVerifier);
+      const verifier = buildVerifier();
+      const result   = await signInWithPhoneNumber(auth, fullPhone, verifier);
       setConfirmResult(result);
       setStep(STEPS.OTP);
+      startResendTimer();
       toast.success('OTP sent to ' + fullPhone);
     } catch (err) {
-      // Reset recaptcha so user can retry
-      window.recaptchaVerifier?.clear?.();
+      try { window.recaptchaVerifier?.clear?.(); } catch {}
       window.recaptchaVerifier = null;
-
-      if (err.code === 'auth/invalid-phone-number') {
-        toast.error('Invalid phone number format.');
-      } else if (err.code === 'auth/too-many-requests') {
-        toast.error('Too many attempts. Try again after some time.');
-      } else {
-        toast.error('Failed to send OTP. Check your internet connection.');
-        console.error('OTP send error:', err.code, err.message);
-      }
+      const msg =
+        err.code === 'auth/invalid-phone-number'    ? 'Invalid phone number.' :
+        err.code === 'auth/too-many-requests'        ? 'Too many attempts — try later.' :
+        err.code === 'auth/captcha-check-failed'     ? 'Verification failed. Tap retry.' :
+        err.code === 'auth/invalid-app-credential'   ? 'App not verified — check Firebase SHA-1.' :
+        err.code === 'auth/quota-exceeded'           ? 'SMS quota exceeded.' :
+        `OTP error: ${err.code || err.message}`;
+      toast.error(msg);
     } finally { setLoading(false); }
   };
 
-  // Core verify — takes otp array directly so auto-submit is reliable
+  const resendOtp = async () => {
+    if (resendTimer > 0) return;
+    setOtp(['', '', '', '', '', '']);
+    await sendOtp();
+  };
+
+  // Core verify — takes otp array directly
   const verifyOtpCode = async (otpArray) => {
     const code = otpArray.join('');
     if (code.length !== 6) return;
@@ -143,18 +146,12 @@ export default function LoginPage() {
       setIdToken(token);
       await finishLogin(token);
     } catch (err) {
-      if (err.code === 'auth/invalid-verification-code') {
-        toast.error('Wrong OTP. Please check and try again.');
-      } else if (err.code === 'auth/code-expired') {
-        toast.error('OTP expired — tap "Resend" to get a new one.');
-      } else if (err.code === 'auth/session-expired') {
-        toast.error('Session expired — tap "Resend OTP".');
-        setStep(STEPS.PHONE);
-      } else {
-        toast.error('Verification failed. Please retry.');
-        console.error('OTP verify error:', err.code, err.message);
-      }
-      // Reset all otp boxes on error
+      const msg =
+        err.code === 'auth/invalid-verification-code' ? 'Wrong OTP — check and retry.' :
+        err.code === 'auth/code-expired'               ? 'OTP expired — tap Resend.' :
+        err.code === 'auth/session-expired'            ? 'Session expired — tap Resend.' :
+        `Verify error: ${err.code || err.message}`;
+      toast.error(msg);
       setOtp(['', '', '', '', '', '']);
       setTimeout(() => otpRefs.current[0]?.focus(), 50);
     } finally { setLoading(false); }
@@ -164,14 +161,9 @@ export default function LoginPage() {
 
   const handleOtpChange = (val, idx) => {
     const digit = val.replace(/\D/g, '').slice(-1);
-    const next  = [...otp];
-    next[idx]   = digit;
-    setOtp(next);
-
-    if (digit && idx < 5) {
-      otpRefs.current[idx + 1]?.focus();
-    } else if (digit && idx === 5 && next.every(d => d !== '')) {
-      // All 6 digits entered → auto-submit
+    const next  = [...otp]; next[idx] = digit; setOtp(next);
+    if (digit && idx < 5) otpRefs.current[idx + 1]?.focus();
+    else if (digit && idx === 5 && next.every(d => d !== '')) {
       otpRefs.current[5]?.blur();
       setTimeout(() => verifyOtpCode(next), 120);
     }
@@ -187,15 +179,14 @@ export default function LoginPage() {
     const res = await login(idToken, name.trim());
     setLoading(false);
     if (res.success) { toast.success('Welcome to Kabutar! 🕊️'); redirectAfterLogin(res); }
-    else toast.error(res.message || 'Could not save name. Try again.');
+    else toast.error(res.message || 'Try again.');
   };
 
-  // ── HOME step ─────────────────────────────────────────────────────────────────
+  // ── HOME ─────────────────────────────────────────────────────────────────────
   if (step === STEPS.HOME) {
     return (
       <div className="min-h-screen flex flex-col"
         style={{ background: 'linear-gradient(160deg, #f97316 0%, #ea580c 55%, #9a3412 100%)' }}>
-
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-20 -right-12 w-56 h-56 rounded-full bg-white/10" />
           <div className="absolute top-1/3 -left-16 w-40 h-40 rounded-full bg-white/8" />
@@ -213,7 +204,7 @@ export default function LoginPage() {
           </div>
           <h1 className="text-4xl font-black text-white tracking-tight mb-2">kabutar</h1>
           <p className="text-orange-100 text-center text-sm font-medium leading-relaxed max-w-xs">
-            Send parcels with trusted travelers.{'\n'}Save money. Earn by traveling.
+            Same route. Shared journey.
           </p>
           <div className="flex gap-2 mt-8 flex-wrap justify-center">
             {['✅ OTP Verified', '⭐ Trust Ratings', '🔐 KYC Secured'].map(t => (
@@ -224,31 +215,26 @@ export default function LoginPage() {
 
         <div className="relative z-10 px-5 pb-10 pt-6"
           style={{ background: 'linear-gradient(to top, rgba(154,52,18,0.95) 0%, transparent 100%)' }}>
-
-          {/* Google — works on both web and Android (native plugin on Android) */}
           <button onClick={signInWithGoogle} disabled={googleLoading}
             className="w-full flex items-center justify-center gap-3 bg-white rounded-2xl py-4 mb-3 font-semibold text-stone-800 text-sm shadow-lg active:scale-95 transition-all disabled:opacity-70">
             {googleLoading ? <Spinner /> : <><GoogleIcon /> Continue with Google</>}
           </button>
-
-          {/* Phone OTP */}
           <button onClick={() => setStep(STEPS.PHONE)}
             className="w-full flex items-center justify-center gap-3 bg-white/15 border border-white/25 rounded-2xl py-4 font-semibold text-white text-sm active:scale-95 transition-all backdrop-blur-sm">
-            <Phone size={17} />
-            Continue with Phone
+            <Phone size={17} /> Continue with Phone
           </button>
-
           <p className="text-center text-white/50 text-[11px] mt-5">
             By continuing, you agree to our Terms &amp; Privacy Policy
           </p>
         </div>
 
-        <div id="recaptcha-container" />
+        {/* reCAPTCHA renders here — visible on Android, invisible on web */}
+        <div id="recaptcha-container" className="flex justify-center pb-4" />
       </div>
     );
   }
 
-  // ── PHONE / OTP / NAME steps ──────────────────────────────────────────────────
+  // ── PHONE / OTP / NAME ───────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col">
       <div className="bg-gradient-to-br from-orange-500 to-orange-600 px-5 pt-12 pb-8">
@@ -278,15 +264,22 @@ export default function LoginPage() {
         {step === STEPS.PHONE && (
           <>
             <div className="flex gap-2">
-              <div className="w-16 bg-white border border-stone-200 rounded-xl flex items-center justify-center text-stone-600 font-semibold text-sm shadow-sm shrink-0">
-                +91
-              </div>
+              <div className="w-16 bg-white border border-stone-200 rounded-xl flex items-center justify-center text-stone-600 font-semibold text-sm shadow-sm shrink-0">+91</div>
               <input className="input-field flex-1 text-lg font-semibold tracking-widest"
                 placeholder="98765 43210" value={phone}
                 onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                 onKeyDown={e => e.key === 'Enter' && sendOtp()}
                 type="tel" inputMode="numeric" autoFocus maxLength={10} />
             </div>
+
+            {/* On Android: reCAPTCHA renders here as a visible checkbox */}
+            {isNativeApp && (
+              <div className="text-xs text-stone-400 text-center">
+                Complete the verification below, then tap Send OTP
+              </div>
+            )}
+            <div id="recaptcha-container" className="flex justify-center" />
+
             <button className="btn-primary w-full flex items-center justify-center gap-2 py-4 text-base rounded-2xl"
               onClick={sendOtp} disabled={loading || phone.length < 10}>
               {loading ? <Spinner /> : <><span>Send OTP</span><ArrowRight size={17} /></>}
@@ -294,25 +287,26 @@ export default function LoginPage() {
           </>
         )}
 
-        {/* OTP — responsive boxes that auto-submit */}
+        {/* OTP — autocomplete="one-time-code" enables Android SMS auto-detect */}
         {step === STEPS.OTP && (
           <>
             <p className="text-xs text-stone-400 text-center">
-              {loading ? 'Verifying your code…' : 'Fills automatically when all 6 digits are entered'}
+              {loading ? 'Verifying…' : 'Auto-fills from SMS · or enter manually'}
             </p>
 
-            {/* Fixed 40×48 px boxes — never overflow on any screen size */}
             <div className="flex gap-2 justify-center">
               {otp.map((d, i) => (
                 <input key={i} ref={el => (otpRefs.current[i] = el)}
-                  className={`w-10 h-12 shrink-0 text-center text-lg font-bold border-2 rounded-xl outline-none transition-all bg-white
+                  className={`w-10 h-12 shrink-0 text-center font-bold border-2 rounded-xl outline-none transition-all bg-white text-xl
                     ${d ? 'border-orange-400 bg-orange-50 text-orange-600' : 'border-stone-200 text-stone-900'}
-                    ${loading ? 'opacity-50 pointer-events-none' : 'focus:border-orange-400 focus:ring-2 focus:ring-orange-100'}
-                  `}
+                    ${loading ? 'opacity-50 pointer-events-none' : 'focus:border-orange-400 focus:ring-2 focus:ring-orange-100'}`}
                   value={d}
                   onChange={e => handleOtpChange(e.target.value, i)}
                   onKeyDown={e => handleOtpKey(e, i)}
-                  inputMode="numeric" maxLength={1}
+                  inputMode="numeric"
+                  maxLength={1}
+                  // This attribute triggers Android SMS suggestion bar & iOS QuickType
+                  autoComplete={i === 0 ? 'one-time-code' : 'off'}
                   autoFocus={i === 0} disabled={loading}
                 />
               ))}
@@ -329,10 +323,25 @@ export default function LoginPage() {
                   onClick={verifyOtp} disabled={otp.join('').length !== 6}>
                   <Shield size={17} /> Verify OTP
                 </button>
-                <button onClick={() => { setStep(STEPS.PHONE); setOtp(['','','','','','']); window.recaptchaVerifier = null; }}
-                  className="w-full text-center text-orange-500 text-sm font-semibold py-2">
-                  Change number or resend OTP
-                </button>
+
+                {/* Resend with countdown */}
+                <div className="flex items-center justify-center gap-2 py-1">
+                  {resendTimer > 0 ? (
+                    <p className="text-sm text-stone-400">
+                      Resend OTP in <span className="font-bold text-orange-500">{resendTimer}s</span>
+                    </p>
+                  ) : (
+                    <button onClick={resendOtp}
+                      className="flex items-center gap-1.5 text-sm font-semibold text-orange-500 hover:text-orange-600 transition-colors">
+                      <RotateCcw size={14} /> Resend OTP
+                    </button>
+                  )}
+                  <span className="text-stone-300">·</span>
+                  <button onClick={() => { setStep(STEPS.PHONE); setOtp(['','','','','','']); clearInterval(timerRef.current); }}
+                    className="text-sm text-stone-400 hover:text-stone-600">
+                    Change number
+                  </button>
+                </div>
               </>
             )}
           </>
@@ -354,7 +363,8 @@ export default function LoginPage() {
         )}
       </div>
 
-      <div id="recaptcha-container" />
+      {/* reCAPTCHA container (invisible on web, moves here for PHONE step) */}
+      {step !== STEPS.PHONE && <div id="recaptcha-container" />}
     </div>
   );
 }
