@@ -1,21 +1,39 @@
 const Message = require('../models/Message');
 
 const setupSocket = (io) => {
-  const onlineUsers = new Map();
+  const onlineUsers = new Map(); // userId → socketId
+  const lastSeen    = new Map(); // userId → timestamp (ms)
 
   io.on('connection', (socket) => {
-    console.log(`Socket connected: ${socket.id}`);
-
-    // Register user
+    // Register user as online
     socket.on('register', (userId) => {
       onlineUsers.set(userId, socket.id);
       socket.userId = userId;
-      console.log(`User ${userId} registered`);
+      // Broadcast to everyone that this user came online
+      socket.broadcast.emit('user_online', { userId });
     });
 
-    // Join a chat room (roomId = sorted userId1_userId2)
+    // Join a chat room
     socket.on('join_room', (roomId) => {
       socket.join(roomId);
+    });
+
+    // Query online/last-seen status of another user
+    socket.on('check_online', (targetUserId) => {
+      socket.emit('online_status', {
+        userId:      targetUserId,
+        isOnline:    onlineUsers.has(targetUserId),
+        lastSeenAt:  lastSeen.get(targetUserId) || null,
+      });
+    });
+
+    // Typing indicator — broadcast to room partner only
+    socket.on('typing', ({ roomId }) => {
+      socket.to(roomId).emit('partner_typing', { userId: socket.userId });
+    });
+
+    socket.on('stop_typing', ({ roomId }) => {
+      socket.to(roomId).emit('partner_stopped_typing', { userId: socket.userId });
     });
 
     // Send message
@@ -47,9 +65,13 @@ const setupSocket = (io) => {
 
     socket.on('disconnect', () => {
       if (socket.userId) {
+        lastSeen.set(socket.userId, Date.now());
         onlineUsers.delete(socket.userId);
+        socket.broadcast.emit('user_offline', {
+          userId:     socket.userId,
+          lastSeenAt: Date.now(),
+        });
       }
-      console.log(`Socket disconnected: ${socket.id}`);
     });
   });
 };

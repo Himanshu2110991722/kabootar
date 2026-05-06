@@ -64,6 +64,16 @@ router.post('/verify', async (req, res) => {
       user = await User.create({ firebaseUid, name, phone: resolvedPhone });
     }
 
+    // Phone OTP sign-in → phone is already verified by Firebase, mark it
+    if (phone && !user.isPhoneVerified) {
+      await User.findByIdAndUpdate(user._id, {
+        phone,
+        isPhoneVerified: true,
+      });
+      user.phone           = phone;
+      user.isPhoneVerified = true;
+    }
+
     const token = generateToken(user._id);
     res.json({
       token,
