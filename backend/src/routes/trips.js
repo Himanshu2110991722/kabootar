@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Trip = require('../models/Trip');
 const { protect } = require('../middleware/auth');
+const { sendToTopic, cityTopic, routeTopic } = require('../utils/notifications');
 
 // GET /api/trips - List all active trips (public)
 router.get('/', async (req, res) => {
@@ -77,6 +78,24 @@ router.post('/', protect, async (req, res) => {
     });
 
     await trip.populate('userId', 'name profileImage maskedPhone rating kycStatus tripsCompleted city');
+
+    // Notify senders in fromCity that a new traveler is available (topic broadcast)
+    const transportLabel = { train: '🚂 Train', flight: '✈️ Flight', bus: '🚌 Bus', car: '🚗 Car' };
+    setImmediate(() => {
+      // Notify city topic (all users interested in fromCity)
+      sendToTopic(cityTopic(trip.fromCity), {
+        title: `🕊️ New traveler: ${trip.fromCity} → ${trip.toCity}`,
+        body:  `${req.user.name} · ${transportLabel[trip.transportMode] || ''} · ${trip.availableWeight}kg · ₹${trip.pricePerKg}/kg`,
+        data:  { type: 'new_trip', tripId: String(trip._id), fromCity: trip.fromCity, toCity: trip.toCity },
+      });
+      // Also notify specific route topic if subscribed
+      sendToTopic(routeTopic(trip.fromCity, trip.toCity), {
+        title: `✈️ Traveler on your route: ${trip.fromCity} → ${trip.toCity}`,
+        body:  `${req.user.name} · ${trip.availableWeight}kg available · ₹${trip.pricePerKg}/kg`,
+        data:  { type: 'new_trip', tripId: String(trip._id) },
+      });
+    });
+
     res.status(201).json({ trip });
   } catch (err) {
     res.status(500).json({ message: err.message });

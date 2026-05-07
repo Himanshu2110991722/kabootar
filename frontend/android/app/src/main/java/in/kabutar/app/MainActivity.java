@@ -1,6 +1,9 @@
 package in.kabutar.app;
 
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.Window;
@@ -13,19 +16,14 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // Edge-to-edge display
         Window window = getWindow();
-
-        // Edge-to-edge: allow WebView content to draw under status bar and nav bar
         WindowCompat.setDecorFitsSystemWindows(window, false);
-
-        // Make both bars fully transparent so the web app controls the colors
         window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
         window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
         window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
         window.setStatusBarColor(Color.TRANSPARENT);
         window.setNavigationBarColor(Color.TRANSPARENT);
-
-        // Light navigation bar icons (dark icons on light background)
         View decorView = window.getDecorView();
         decorView.setSystemUiVisibility(
             View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -33,5 +31,60 @@ public class MainActivity extends BridgeActivity {
             | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
             | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
         );
+
+        // Create notification channels (Android 8.0+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            createNotificationChannels();
+        }
+    }
+
+    private void createNotificationChannels() {
+        NotificationManager nm = getSystemService(NotificationManager.class);
+        if (nm == null) return;
+
+        // Chat messages — high priority, sound + vibration
+        NotificationChannel chat = new NotificationChannel(
+            "kabutar_chat",
+            "Chat Messages",
+            NotificationManager.IMPORTANCE_HIGH
+        );
+        chat.setDescription("Messages from travelers and senders");
+        chat.enableLights(true);
+        chat.setLightColor(0xFFF97316); // orange
+        chat.enableVibration(true);
+        chat.setVibrationPattern(new long[]{0, 200, 100, 200});
+        nm.createNotificationChannel(chat);
+
+        // Parcel events — high priority
+        NotificationChannel parcels = new NotificationChannel(
+            "kabutar_parcels",
+            "Parcel Updates",
+            NotificationManager.IMPORTANCE_HIGH
+        );
+        parcels.setDescription("Parcel requests, acceptance, and delivery confirmations");
+        parcels.enableLights(true);
+        parcels.setLightColor(0xFF22C55E); // green
+        parcels.enableVibration(true);
+        nm.createNotificationChannel(parcels);
+
+        // Trip updates — default priority
+        NotificationChannel trips = new NotificationChannel(
+            "kabutar_trips",
+            "Trip Alerts",
+            NotificationManager.IMPORTANCE_DEFAULT
+        );
+        trips.setDescription("New trips and travel updates in your area");
+        trips.enableLights(true);
+        trips.setLightColor(0xFF3B82F6); // blue
+        nm.createNotificationChannel(trips);
+
+        // General / fallback
+        NotificationChannel general = new NotificationChannel(
+            "kabutar_default",
+            "General",
+            NotificationManager.IMPORTANCE_DEFAULT
+        );
+        general.setDescription("General Kabutar notifications");
+        nm.createNotificationChannel(general);
     }
 }

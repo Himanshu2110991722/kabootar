@@ -198,11 +198,54 @@ router.post('/me/phone', protect, async (req, res) => {
   }
 });
 
-// PATCH /api/auth/me/fcm-token — save push notification token for this device
+// PATCH /api/auth/me/fcm-token — save push token and subscribe to city topics
 router.patch('/me/fcm-token', protect, async (req, res) => {
   const { token } = req.body;
   if (!token) return res.status(400).json({ message: 'token required' });
+
+  const { subscribeTokenToTopics, unsubscribeTokenFromTopics, cityTopic } =
+    require('../utils/notifications');
+
+  const user = await User.findById(req.user._id).select('fcmToken city');
+
+  // Unsubscribe old token from topics before replacing it
+  if (user?.fcmToken && user.fcmToken !== token) {
+    const oldTopics = ['kabutar_all'];
+    if (user.city) oldTopics.push(cityTopic(user.city));
+    await unsubscribeTokenFromTopics(user.fcmToken, oldTopics).catch(() => {});
+  }
+
   await User.findByIdAndUpdate(req.user._id, { fcmToken: token });
+
+  // Subscribe new token to: global topic + user's city (if set)
+  const topics = ['kabutar_all'];
+  if (user?.city) topics.push(cityTopic(user.city));
+  await subscribeTokenToTopics(token, topics);
+
+  res.json({ ok: true });
+});
+
+// POST /api/auth/me/fcm-subscribe — subscribe device to extra topics (e.g. frequent route)
+router.post('/me/fcm-subscribe', protect, async (req, res) => {
+  const { topics } = req.body;
+  if (!Array.isArray(topics) || !topics.length)
+    return res.status(400).json({ message: 'topics array required' });
+  const user = await User.findById(req.user._id).select('fcmToken');
+  if (!user?.fcmToken) return res.json({ ok: true });
+  const { subscribeTokenToTopics } = require('../utils/notifications');
+  await subscribeTokenToTopics(user.fcmToken, topics);
+  res.json({ ok: true });
+});
+
+// POST /api/auth/me/fcm-unsubscribe — remove device from topics
+router.post('/me/fcm-unsubscribe', protect, async (req, res) => {
+  const { topics } = req.body;
+  if (!Array.isArray(topics) || !topics.length)
+    return res.status(400).json({ message: 'topics array required' });
+  const user = await User.findById(req.user._id).select('fcmToken');
+  if (!user?.fcmToken) return res.json({ ok: true });
+  const { unsubscribeTokenFromTopics } = require('../utils/notifications');
+  await unsubscribeTokenFromTopics(user.fcmToken, topics);
   res.json({ ok: true });
 });
 

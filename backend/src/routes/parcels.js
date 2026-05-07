@@ -69,6 +69,23 @@ router.post('/', protect, async (req, res) => {
     });
 
     await parcel.populate('userId', 'name profileImage maskedPhone rating kycStatus');
+
+    // Notify travelers in fromCity that a new parcel needs carrying (topic broadcast)
+    const { sendToTopic, cityTopic, routeTopic } = require('../utils/notifications');
+    const itemEmoji = { documents: '📄', electronics: '📱', clothes: '👕', others: '📦' };
+    setImmediate(() => {
+      sendToTopic(cityTopic(fromCity), {
+        title: `📦 Parcel needs a carrier: ${fromCity} → ${toCity}`,
+        body:  `${itemEmoji[itemType] || '📦'} ${itemType} · ${weight}kg — earn by carrying this`,
+        data:  { type: 'parcel_request', parcelId: String(parcel._id), fromCity, toCity },
+      });
+      sendToTopic(routeTopic(fromCity, toCity), {
+        title: `📦 Parcel on your route: ${fromCity} → ${toCity}`,
+        body:  `${itemEmoji[itemType] || '📦'} ${weight}kg ${itemType} needs carrying`,
+        data:  { type: 'parcel_request', parcelId: String(parcel._id) },
+      });
+    });
+
     res.status(201).json({ parcel });
   } catch (err) {
     res.status(500).json({ message: err.message });
