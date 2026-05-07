@@ -3,6 +3,7 @@ const router = express.Router();
 const Message = require('../models/Message');
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
+const { sendPush } = require('../utils/notifications');
 
 // GET /api/chat/conversations
 router.get('/conversations', protect, async (req, res) => {
@@ -105,6 +106,17 @@ router.post('/:userId', protect, async (req, res) => {
         timestamp: message.timestamp,
       });
     }
+
+    // Push notification to receiver (fire-and-forget)
+    const notifBody =
+      type === 'offer'  ? `💰 Offer: ₹${amount}` :
+      type === 'image'  ? '📷 Sent you an image' :
+      (text || '').slice(0, 80);
+    sendPush(req.params.userId, {
+      title: `💬 ${req.user.name}`,
+      body:  notifBody,
+      data:  { type: 'message', senderId: String(req.user._id) },
+    });
 
     res.status(201).json({ message });
   } catch (err) {

@@ -3,6 +3,7 @@ const router = express.Router();
 const Parcel = require('../models/Parcel');
 const { protect } = require('../middleware/auth');
 const { upload, getFileUrl } = require('../utils/upload');
+const { sendPush } = require('../utils/notifications');
 
 // GET /api/parcels - List all open parcels (public)
 router.get('/', async (req, res) => {
@@ -106,6 +107,14 @@ router.post('/:id/accept', protect, async (req, res) => {
     await parcel.save();
     await parcel.populate('userId', 'name maskedPhone rating');
     await parcel.populate('travelerId', 'name maskedPhone rating');
+
+    // Notify sender that a traveler accepted their parcel
+    sendPush(parcel.userId._id || parcel.userId, {
+      title: '🎉 Traveler accepted your parcel!',
+      body:  `${req.user.name} will carry your parcel from ${parcel.fromCity} → ${parcel.toCity}`,
+      data:  { type: 'parcel_accepted', parcelId: String(parcel._id) },
+    });
+
     res.json({ parcel });
   } catch (err) {
     res.status(500).json({ message: err.message });

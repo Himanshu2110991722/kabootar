@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import { auth } from '../lib/firebase';
 import api from '../lib/api';
 import { connectSocket, disconnectSocket } from '../lib/socket';
+import { initPushNotifications } from '../lib/pushNotifications';
 
 const AuthContext = createContext(null);
 
@@ -29,6 +30,8 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('kabootar_user', JSON.stringify(data.user));
       setUser(data.user);
       connectSocket(data.user._id);
+      // Register for push notifications after login (fire-and-forget)
+      initPushNotifications(data.user._id).catch(() => {});
       return { success: true, user: data.user, requiresProfileCompletion: data.requiresProfileCompletion };
     } catch (err) {
       const isTimeout = err.code === 'ECONNABORTED' || err.message?.includes('timeout');

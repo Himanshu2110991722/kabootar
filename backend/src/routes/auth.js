@@ -198,6 +198,14 @@ router.post('/me/phone', protect, async (req, res) => {
   }
 });
 
+// PATCH /api/auth/me/fcm-token — save push notification token for this device
+router.patch('/me/fcm-token', protect, async (req, res) => {
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ message: 'token required' });
+  await User.findByIdAndUpdate(req.user._id, { fcmToken: token });
+  res.json({ ok: true });
+});
+
 // POST /api/auth/me/image — upload profile photo (multer file → stored URL)
 // Also accepts legacy { imageUrl } JSON body for backward compat
 const { upload, getFileUrl } = require('../utils/upload');
