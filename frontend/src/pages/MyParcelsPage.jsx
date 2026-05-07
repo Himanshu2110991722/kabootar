@@ -4,9 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
-import { MessageCircle, ChevronDown, ChevronUp, Camera, Upload } from 'lucide-react';
+import { MessageCircle, ChevronDown, ChevronUp, Camera, Trash2, Edit2 } from 'lucide-react';
 import ParcelStatusTimeline from '../components/ParcelStatusTimeline';
 import OtpVerifyModal from '../components/OtpVerifyModal';
+import PostParcelModal from '../components/PostParcelModal';
 
 const ITEM_EMOJI = { documents: '📄', electronics: '📱', clothes: '👕', others: '📦' };
 
@@ -27,8 +28,9 @@ export default function MyParcelsPage() {
   const [parcels, setParcels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState({});
-  const [otpModal, setOtpModal] = useState(null);
-  const [uploadingPhoto, setUploadingPhoto] = useState({});
+  const [otpModal,      setOtpModal]      = useState(null);
+  const [uploadingPhoto,setUploadingPhoto] = useState({});
+  const [editingParcel, setEditingParcel]  = useState(null);
 
   useEffect(() => {
     api.get('/parcels/my')
@@ -59,6 +61,21 @@ export default function MyParcelsPage() {
     } finally {
       setUploadingPhoto(p => ({ ...p, [`${parcelId}-${type}`]: false }));
     }
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('Delete this parcel request?')) return;
+    try {
+      await api.delete(`/parcels/${id}`);
+      setParcels(prev => prev.filter(p => p._id !== id));
+      toast.success('Parcel request deleted');
+    } catch { toast.error('Failed to delete'); }
+  };
+
+  const handleEditSuccess = (updated) => {
+    setParcels(prev => prev.map(p => p._id === updated._id ? { ...p, ...updated } : p));
+    setEditingParcel(null);
+    toast.success('Parcel updated!');
   };
 
   const handleOtpSuccess = (updated) => {
@@ -196,13 +213,31 @@ export default function MyParcelsPage() {
 
                 {/* Sender actions */}
                 {!asTraveler && (
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     {traveler && typeof traveler === 'object' && (
                       <button
                         onClick={() => navigate(`/chat/${traveler._id}`)}
                         className="btn-secondary flex items-center gap-1.5 text-sm py-1.5"
                       >
                         <MessageCircle size={13} /> Chat traveler
+                      </button>
+                    )}
+                    {/* Edit — only for open parcels */}
+                    {parcel.status === 'open' && (
+                      <button
+                        onClick={() => setEditingParcel(parcel)}
+                        className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 flex items-center gap-1 text-xs font-semibold text-stone-600 hover:bg-stone-100 transition-colors"
+                      >
+                        <Edit2 size={12} /> Edit
+                      </button>
+                    )}
+                    {/* Delete — only for open/cancelled parcels */}
+                    {['open','cancelled'].includes(parcel.status) && (
+                      <button
+                        onClick={() => handleDelete(parcel._id)}
+                        className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center text-red-400 hover:bg-red-100 transition-colors"
+                      >
+                        <Trash2 size={13} />
                       </button>
                     )}
                   </div>
@@ -237,6 +272,15 @@ export default function MyParcelsPage() {
           type={otpModal.type}
           onClose={() => setOtpModal(null)}
           onSuccess={handleOtpSuccess}
+        />
+      )}
+
+      {editingParcel && (
+        <PostParcelModal
+          initialData={editingParcel}
+          parcelId={editingParcel._id}
+          onClose={() => setEditingParcel(null)}
+          onSuccess={handleEditSuccess}
         />
       )}
     </div>

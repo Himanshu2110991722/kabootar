@@ -1,17 +1,23 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { uploadImageToStorage } from '../lib/firebase';
 import toast from 'react-hot-toast';
+import { format } from 'date-fns';
 import {
   Star, Phone, LogOut, ChevronRight, Package, Send,
   Shield, CheckCircle, Clock, Camera, Lock, MapPin,
-  History, AlertCircle, Edit2, Pencil,
+  History, AlertCircle, Edit2, Pencil, Trash2, Train,
+  Plane, Bus, Car, ChevronDown, ChevronUp, Plus,
 } from 'lucide-react';
 import KYCUploadModal from '../components/KYCUploadModal';
 import PhoneVerifyModal from '../components/PhoneVerifyModal';
+import PostTripModal from '../components/PostTripModal';
+import PostParcelModal from '../components/PostParcelModal';
 import CityInput from '../components/CityInput';
+
+const TRANSPORT_ICON = { train: Train, flight: Plane, bus: Bus, car: Car };
 
 const calcCompletion = (user) => {
   const checks = [
@@ -42,10 +48,50 @@ export default function ProfilePage() {
 
   const [editing,        setEditing]        = useState(false);
   const [draft,          setDraft]          = useState({ name: user?.name || '', phone: currentPhone, city: user?.city || '' });
-  const [saving,         setSaving]         = useState(false);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [showKyc,        setShowKyc]        = useState(false);
-  const [showPhoneVerify,setShowPhoneVerify]= useState(false);
+  const [saving,          setSaving]          = useState(false);
+  const [uploadingPhoto,  setUploadingPhoto]  = useState(false);
+  const [showKyc,         setShowKyc]         = useState(false);
+  const [showPhoneVerify, setShowPhoneVerify] = useState(false);
+
+  // ── Inline trip / parcel management ────────────────────────────────────────
+  const [myTrips,       setMyTrips]       = useState([]);
+  const [myParcels,     setMyParcels]     = useState([]);
+  const [tripsOpen,     setTripsOpen]     = useState(false);
+  const [parcelsOpen,   setParcelsOpen]   = useState(false);
+  const [editingTrip,   setEditingTrip]   = useState(null);
+  const [editingParcel, setEditingParcel] = useState(null);
+
+  useEffect(() => {
+    if (!user) return;
+    const today = new Date(); today.setHours(0,0,0,0);
+    api.get('/trips/my').then(r => {
+      setMyTrips(r.data.trips.filter(t => t.status === 'active' && new Date(t.date) >= today));
+    }).catch(() => {});
+    api.get('/parcels/my').then(r => {
+      setMyParcels(r.data.parcels.filter(p => p.status === 'open'));
+    }).catch(() => {});
+  }, [user]);
+
+  const deleteTrip = async (id) => {
+    if (!confirm('Delete this trip?')) return;
+    await api.delete(`/trips/${id}`);
+    setMyTrips(prev => prev.filter(t => t._id !== id));
+    toast.success('Trip deleted');
+  };
+
+  const markTripFull = async (id) => {
+    if (!confirm('Mark as full? Removes from public listing.')) return;
+    await api.patch(`/trips/${id}`, { status: 'completed' });
+    setMyTrips(prev => prev.filter(t => t._id !== id));
+    toast.success('Trip marked as full');
+  };
+
+  const deleteParcel = async (id) => {
+    if (!confirm('Delete this parcel request?')) return;
+    await api.delete(`/parcels/${id}`);
+    setMyParcels(prev => prev.filter(p => p._id !== id));
+    toast.success('Parcel request deleted');
+  };
 
   const cancelEdit = () => {
     setEditing(false);
@@ -317,16 +363,195 @@ export default function ProfilePage() {
         )}
       </div>
 
-      {/* ── Navigation menu ───────────────────────────────────── */}
+      {/* ── KYC gate banner — show when not verified ── */}
+      {user?.kycStatus !== 'verified' && (
+        <div className="mx-4 mb-4 rounded-2xl overflow-hidden border border-amber-200 bg-amber-50">
+          <div className="flex items-start gap-3 px-4 py-3">
+            <AlertCircle size={18} className="text-amber-500 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-bold text-stone-800">
+                {user?.kycStatus === 'pending'
+                  ? 'KYC under review — you can\'t post trips yet'
+                  : 'KYC required to post trips'}
+              </p>
+              <p className="text-xs text-stone-500 mt-0.5">
+                {user?.kycStatus === 'pending'
+                  ? 'We\'re reviewing your documents. Approval usually takes 24h.'
+                  : 'Verify your identity to build trust with senders and unlock trip posting.'}
+              </p>
+            </div>
+          </div>
+          {user?.kycStatus !== 'pending' && (
+            <button onClick={() => navigate('/kyc')}
+              className="w-full bg-amber-500 text-white font-semibold text-sm py-2.5 flex items-center justify-center gap-1.5 hover:bg-amber-600 transition-colors">
+              <Shield size={14} /> Complete KYC Verification →
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── My Trips — inline management ── */}
+      <div className="mx-4 card mb-3 overflow-hidden">
+        <button onClick={() => setTripsOpen(v => !v)}
+          className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-stone-50 transition-colors">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center">
+              <Send size={15} className="text-orange-500" />
+            </div>
+            <div className="text-left">
+              <div className="text-sm font-semibold text-stone-800">My Trips</div>
+              <div className="text-[11px] text-stone-400">
+                {myTrips.length > 0 ? `${myTrips.length} active trip${myTrips.length !== 1 ? 's' : ''}` : 'No active trips'}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {user?.kycStatus === 'verified' && (
+              <button onClick={e => { e.stopPropagation(); setEditingTrip('new'); }}
+                className="w-7 h-7 rounded-lg bg-orange-50 flex items-center justify-center text-orange-500 hover:bg-orange-100 transition-colors">
+                <Plus size={14} />
+              </button>
+            )}
+            {tripsOpen ? <ChevronUp size={16} className="text-stone-400" /> : <ChevronDown size={16} className="text-stone-400" />}
+          </div>
+        </button>
+
+        {tripsOpen && (
+          <div className="border-t border-stone-100">
+            {myTrips.length === 0 ? (
+              <div className="px-4 py-4 text-center">
+                <p className="text-xs text-stone-400 mb-2">No active trips posted yet</p>
+                {user?.kycStatus === 'verified' ? (
+                  <button onClick={() => setEditingTrip('new')}
+                    className="text-xs font-semibold text-orange-500">+ Post a trip</button>
+                ) : (
+                  <button onClick={() => navigate('/kyc')}
+                    className="text-xs font-semibold text-amber-500">Complete KYC first →</button>
+                )}
+              </div>
+            ) : (
+              <div className="divide-y divide-stone-50">
+                {myTrips.map(trip => {
+                  const TIcon = TRANSPORT_ICON[trip.transportMode] || Train;
+                  return (
+                    <div key={trip._id} className="px-4 py-3 flex items-center gap-3">
+                      <div className="shrink-0">
+                        <TIcon size={16} className="text-stone-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-stone-800 truncate">
+                          {trip.fromCity} → {trip.toCity}
+                        </p>
+                        <p className="text-[11px] text-stone-400">
+                          {format(new Date(trip.date), 'dd MMM yyyy')} · {trip.availableWeight} kg · ₹{trip.pricePerKg}/kg
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button onClick={() => setEditingTrip(trip)}
+                          className="w-7 h-7 rounded-lg bg-stone-50 border border-stone-200 flex items-center justify-center text-stone-500 hover:bg-stone-100 transition-colors">
+                          <Edit2 size={12} />
+                        </button>
+                        <button onClick={() => markTripFull(trip._id)}
+                          className="h-7 px-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-600 text-[10px] font-bold hover:bg-emerald-100 transition-colors">
+                          Full
+                        </button>
+                        <button onClick={() => deleteTrip(trip._id)}
+                          className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center text-red-400 hover:bg-red-100 transition-colors">
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <div className="px-4 py-2.5 border-t border-stone-100">
+              <button onClick={() => navigate('/trips', { state: { tab: 'mine' } })}
+                className="text-xs font-semibold text-stone-400 hover:text-orange-500 transition-colors">
+                View travel history →
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── My Parcel Requests — inline management ── */}
+      <div className="mx-4 card mb-4 overflow-hidden">
+        <button onClick={() => setParcelsOpen(v => !v)}
+          className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-stone-50 transition-colors">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center">
+              <Package size={15} className="text-blue-500" />
+            </div>
+            <div className="text-left">
+              <div className="text-sm font-semibold text-stone-800">My Parcel Requests</div>
+              <div className="text-[11px] text-stone-400">
+                {myParcels.length > 0 ? `${myParcels.length} open request${myParcels.length !== 1 ? 's' : ''}` : 'No open requests'}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={e => { e.stopPropagation(); setEditingParcel('new'); }}
+              className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 hover:bg-blue-100 transition-colors">
+              <Plus size={14} />
+            </button>
+            {parcelsOpen ? <ChevronUp size={16} className="text-stone-400" /> : <ChevronDown size={16} className="text-stone-400" />}
+          </div>
+        </button>
+
+        {parcelsOpen && (
+          <div className="border-t border-stone-100">
+            {myParcels.length === 0 ? (
+              <div className="px-4 py-4 text-center">
+                <p className="text-xs text-stone-400 mb-2">No open parcel requests</p>
+                <button onClick={() => setEditingParcel('new')}
+                  className="text-xs font-semibold text-blue-500">+ Post a request</button>
+              </div>
+            ) : (
+              <div className="divide-y divide-stone-50">
+                {myParcels.map(parcel => (
+                  <div key={parcel._id} className="px-4 py-3 flex items-center gap-3">
+                    <span className="text-lg shrink-0">
+                      {parcel.itemType === 'documents' ? '📄' : parcel.itemType === 'electronics' ? '📱' : parcel.itemType === 'clothes' ? '👕' : '📦'}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-stone-800 truncate">
+                        {parcel.fromCity} → {parcel.toCity}
+                      </p>
+                      <p className="text-[11px] text-stone-400 truncate">
+                        {parcel.itemType} · {parcel.weight} kg · {parcel.description?.slice(0, 30)}…
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button onClick={() => setEditingParcel(parcel)}
+                        className="w-7 h-7 rounded-lg bg-stone-50 border border-stone-200 flex items-center justify-center text-stone-500 hover:bg-stone-100 transition-colors">
+                        <Edit2 size={12} />
+                      </button>
+                      <button onClick={() => deleteParcel(parcel._id)}
+                        className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center text-red-400 hover:bg-red-100 transition-colors">
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="px-4 py-2.5 border-t border-stone-100">
+              <button onClick={() => navigate('/my-parcels')}
+                className="text-xs font-semibold text-stone-400 hover:text-blue-500 transition-colors">
+                View all parcel activity →
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Other menu items ── */}
       <div className="mx-4 card divide-y divide-stone-100 mb-4 overflow-hidden">
-        <MenuItem icon={<Send    size={16} className="text-orange-500" />} label="My Trips"
-          sub="Manage your posted trips"  onClick={() => navigate('/trips')} />
         <MenuItem icon={<History size={16} className="text-violet-500" />} label="Travel History"
           sub="Past trips & completed routes" onClick={() => navigate('/trips', { state: { tab: 'mine' } })} />
-        <MenuItem icon={<Package size={16} className="text-blue-500" />}   label="My Parcels"
-          sub="Parcels sent & received"  onClick={() => navigate('/my-parcels')} />
         <MenuItem icon={<Shield  size={16} className="text-emerald-500" />} label="KYC Verification"
-          sub={user?.kycStatus === 'verified' ? 'Identity verified ✓' : 'Verify your identity'}
+          sub={user?.kycStatus === 'verified' ? 'Identity verified ✓' : user?.kycStatus === 'pending' ? 'Under review…' : 'Verify your identity — required to post trips'}
           onClick={() => navigate('/kyc')} />
       </div>
 
@@ -338,6 +563,42 @@ export default function ProfilePage() {
         </button>
         <p className="text-center text-[11px] text-stone-400 mt-4">🕊️ Kabutar v1.0.0 · Made with ♥ in India</p>
       </div>
+
+      {/* Trip edit / create modal */}
+      {editingTrip && (
+        <PostTripModal
+          initialData={editingTrip === 'new' ? null : editingTrip}
+          tripId={editingTrip === 'new' ? null : editingTrip._id}
+          onClose={() => setEditingTrip(null)}
+          onSuccess={trip => {
+            if (editingTrip === 'new') {
+              setMyTrips(prev => [trip, ...prev]);
+            } else {
+              setMyTrips(prev => prev.map(t => t._id === trip._id ? trip : t));
+            }
+            setEditingTrip(null);
+            toast.success(editingTrip === 'new' ? 'Trip posted!' : 'Trip updated!');
+          }}
+        />
+      )}
+
+      {/* Parcel edit / create modal */}
+      {editingParcel && (
+        <PostParcelModal
+          initialData={editingParcel === 'new' ? null : editingParcel}
+          parcelId={editingParcel === 'new' ? null : editingParcel._id}
+          onClose={() => setEditingParcel(null)}
+          onSuccess={parcel => {
+            if (editingParcel === 'new') {
+              setMyParcels(prev => [parcel, ...prev]);
+            } else {
+              setMyParcels(prev => prev.map(p => p._id === parcel._id ? parcel : p));
+            }
+            setEditingParcel(null);
+            toast.success(editingParcel === 'new' ? 'Request posted!' : 'Request updated!');
+          }}
+        />
+      )}
 
       {showKyc && <KYCUploadModal onClose={() => setShowKyc(false)} onSuccess={() => refreshUser()} />}
       {showPhoneVerify && (

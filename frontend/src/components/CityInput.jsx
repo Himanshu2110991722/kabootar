@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from "react";
-import { MapPin } from "lucide-react";
-import { filterCities } from "../lib/cities";
+import { MapPin, CheckCircle } from "lucide-react";
+import { filterCities, isValidCity, POPULAR_CITIES_TOP } from "../lib/cities";
 
 export default function CityInput({ value, onChange, placeholder, className = "" }) {
   const [suggestions, setSuggestions] = useState([]);
-  const [open, setOpen] = useState(false);
+  const [open,        setOpen]        = useState(false);
+  const [touched,     setTouched]     = useState(false);
   const ref = useRef(null);
 
   useEffect(() => {
@@ -17,32 +18,82 @@ export default function CityInput({ value, onChange, placeholder, className = ""
 
   const handleChange = (val) => {
     onChange(val);
-    const results = filterCities(val);
-    setSuggestions(results);
-    setOpen(results.length > 0);
+    setTouched(true);
+    if (!val.trim()) {
+      // Empty → show popular cities
+      setSuggestions(POPULAR_CITIES_TOP);
+      setOpen(true);
+    } else {
+      const results = filterCities(val);
+      setSuggestions(results);
+      setOpen(results.length > 0);
+    }
+  };
+
+  const handleFocus = () => {
+    setTouched(true);
+    if (!value) {
+      setSuggestions(POPULAR_CITIES_TOP);
+      setOpen(true);
+    } else if (suggestions.length > 0) {
+      setOpen(true);
+    }
+  };
+
+  const handleBlur = () => {
+    // Delay to allow click on suggestion to register
+    setTimeout(() => {
+      setOpen(false);
+      // If user typed something not in the list, clear it
+      if (value && !isValidCity(value)) {
+        onChange('');
+        setTouched(false);
+      }
+    }, 180);
   };
 
   const pick = (city) => {
     onChange(city);
     setSuggestions([]);
     setOpen(false);
+    setTouched(true);
   };
+
+  const valid = value && isValidCity(value);
+  const invalid = touched && value && !valid;
 
   return (
     <div className={`relative ${className}`} ref={ref}>
       <div className="relative">
         <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
         <input
-          className="input-field pl-8"
-          placeholder={placeholder || "City"}
+          className={`input-field pl-8 pr-8 transition-colors ${
+            valid   ? 'border-emerald-400 bg-emerald-50/30' :
+            invalid ? 'border-red-300' : ''
+          }`}
+          placeholder={placeholder || "Select city"}
           value={value}
           onChange={e => handleChange(e.target.value)}
-          onFocus={() => { if (suggestions.length > 0) setOpen(true); }}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           autoComplete="off"
         />
+        {valid && (
+          <CheckCircle size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500 pointer-events-none" />
+        )}
       </div>
+
+      {invalid && (
+        <p className="text-[11px] text-red-500 mt-0.5">Select a city from the list</p>
+      )}
+
       {open && suggestions.length > 0 && (
-        <ul className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden animate-slide-down">
+        <ul className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-stone-200 rounded-xl shadow-lg overflow-hidden animate-slide-down max-h-52 overflow-y-auto">
+          {!value && (
+            <li className="px-4 py-1.5 text-[10px] font-bold text-stone-400 uppercase tracking-wide bg-stone-50">
+              Popular cities
+            </li>
+          )}
           {suggestions.map(city => (
             <li key={city}>
               <button

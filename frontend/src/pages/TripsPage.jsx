@@ -11,6 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { useLocationFilter } from '../hooks/useLocationFilter';
 import { POPULAR_CITIES } from '../lib/cityCoords';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 const today = new Date().toISOString().split('T')[0];
@@ -39,6 +40,17 @@ function LiveBadge({ time }) {
 export default function TripsPage() {
   const { user }  = useAuth();
   const authGate  = useAuthGate();
+  const navigate  = useNavigate();
+
+  // KYC check before opening Post Trip modal
+  const openPostTripModal = () => authGate(() => {
+    if (user?.kycStatus !== 'verified') {
+      toast.error('KYC verification required to post trips');
+      setTimeout(() => navigate('/kyc'), 800);
+      return;
+    }
+    setShowModal(true);
+  });
   const location  = useLocation();
   const loc       = useLocationFilter();
 
@@ -168,7 +180,7 @@ export default function TripsPage() {
           <h1 className="text-xl font-bold text-stone-900">Travellers</h1>
           {fetchedAt && !loading && <LiveBadge time={fetchedAt} />}
         </div>
-        <button onClick={() => authGate(() => setShowModal(true))} className="btn-primary flex items-center gap-1.5">
+        <button onClick={openPostTripModal} className="btn-primary flex items-center gap-1.5">
           <Plus size={15} /> Post Trip
         </button>
       </div>
@@ -294,7 +306,7 @@ export default function TripsPage() {
               <div className="card p-6 text-center animate-fade-in">
                 <div className="text-2xl mb-2">✈️</div>
                 <p className="text-stone-600 text-sm font-semibold">No upcoming trips</p>
-                <button onClick={() => authGate(() => setShowModal(true))}
+                <button onClick={openPostTripModal}
                   className="text-orange-500 text-xs font-semibold mt-2 block mx-auto">
                   + Post your first trip
                 </button>
