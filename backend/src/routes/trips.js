@@ -44,9 +44,17 @@ router.get('/my', protect, async (req, res) => {
   }
 });
 
-// POST /api/trips - Create trip
+// POST /api/trips - Create trip (KYC required)
 router.post('/', protect, async (req, res) => {
   try {
+    // Travelers must have verified KYC to post trips — builds trust for senders
+    if (req.user.kycStatus !== 'verified') {
+      return res.status(403).json({
+        message: 'KYC verification is required to post trips. Complete your KYC from Profile → KYC Verification.',
+        requiresKyc: true,
+      });
+    }
+
     const { fromCity, toCity, date, transportMode, availableWeight, pricePerKg, notes, pickupStation, dropStation, departureTime, arrivalTime } = req.body;
 
     if (!fromCity || !toCity || !date || !transportMode || !availableWeight || pricePerKg === undefined) {
