@@ -12,17 +12,10 @@ import androidx.core.view.WindowCompat;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        // ── Skip SafetyNet/reCAPTCHA on debug APKs ─────────────────────────────
-        // On debug APKs SafetyNet fails → Firebase opens browser for reCAPTCHA.
-        // This disables that app-verification step for debug builds only,
-        // so OTP goes straight to SMS — no browser, smooth UX.
-        // BuildConfig.DEBUG = false on release APKs (SafetyNet works normally).
-        // Uses reflection to avoid needing firebase-auth as a compile dep.
-        disableFirebaseAppVerificationForDebug();
 
         // ── Edge-to-edge display ───────────────────────────────────────────────
         Window window = getWindow();
@@ -43,32 +36,6 @@ public class MainActivity extends BridgeActivity {
         // ── Notification channels ──────────────────────────────────────────────
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             createNotificationChannels();
-        }
-    }
-
-    /**
-     * Calls FirebaseAuth.getInstance().getFirebaseAuthSettings()
-     *   .setAppVerificationDisabledForTesting(BuildConfig.DEBUG)
-     * via reflection so we don't need firebase-auth as an explicit compile dependency.
-     */
-    private void disableFirebaseAppVerificationForDebug() {
-        // Check debug flag via ApplicationInfo — doesn't need BuildConfig
-        boolean isDebug = (getApplicationInfo().flags
-                           & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
-        if (!isDebug) return; // no-op on release builds
-
-        // Use reflection — avoids needing firebase-auth as a compile-time dependency
-        try {
-            Class<?> authClass    = Class.forName("com.google.firebase.auth.FirebaseAuth");
-            Object   authInstance = authClass.getMethod("getInstance").invoke(null);
-            Object   settings     = authInstance.getClass()
-                                        .getMethod("getFirebaseAuthSettings")
-                                        .invoke(authInstance);
-            settings.getClass()
-                    .getMethod("setAppVerificationDisabledForTesting", boolean.class)
-                    .invoke(settings, true);
-        } catch (Exception e) {
-            // Firebase Auth not yet on classpath — safe to ignore, will work at runtime
         }
     }
 

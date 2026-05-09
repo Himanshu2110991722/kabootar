@@ -99,55 +99,10 @@ export default function LoginPage() {
       toast.error('Enter a valid 10-digit mobile number'); return;
     }
 
-    if (isNativeApp) {
-      // ── Android native path — completely separate, no finally ──
-      setLoading(true);
-      setOtpStatus('Verifying your device…');
-      // After 3s, hint that a browser verification may appear
-      const hintTimer = setTimeout(() => setOtpStatus('Complete the browser step if it appears…'), 3000);
-
-      try {
-        const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
-        let codeSentHandle, autoHandle;
-        const cleanup = () => { codeSentHandle?.remove?.(); autoHandle?.remove?.(); clearTimeout(hintTimer); };
-
-        codeSentHandle = await FirebaseAuthentication.addListener('phoneCodeSent', (ev) => {
-          cleanup();
-          setVerificationId(ev.verificationId);
-          setOtpStatus('');
-          setStep(STEPS.OTP);
-          startResendTimer();
-          setLoading(false);
-          toast.success('OTP sent to ' + fullPhone);
-        });
-
-        autoHandle = await FirebaseAuthentication.addListener('phoneVerificationCompleted', (ev) => {
-          cleanup();
-          const code = ev.verificationCode || '';
-          const vid  = ev.verificationId  || '';
-          setOtpStatus('');
-          setLoading(false);
-          if (code && vid) {
-            setVerificationId(vid);
-            setOtp(code.split(''));
-            setStep(STEPS.OTP);
-            toast.success('SMS auto-detected! Verifying…');
-            setTimeout(() => verifyNative(vid, code), 300);
-          }
-        });
-
-        await FirebaseAuthentication.signInWithPhoneNumber({ phoneNumber: fullPhone, timeout: 60 });
-        // loading stays true; events above call setLoading(false)
-      } catch (err) {
-        clearTimeout(hintTimer);
-        setLoading(false);
-        setOtpStatus('');
-        toast.error(`OTP error: ${err.code || err.message}`);
-      }
-      return; // never fall through to web path
-    }
-
-    // ── Web path ──
+    // Firebase JS SDK on all platforms.
+    // On Android the WebView runs at https://app.kabutar.in (an authorized Firebase domain),
+    // so reCAPTCHA works. If it opens a browser tab to complete verification, that's fine —
+    // Firebase returns control to the app afterward and the SMS is sent.
     setLoading(true);
     try {
       try { window.recaptchaVerifier?.clear?.(); } catch {}
@@ -212,7 +167,7 @@ export default function LoginPage() {
     else if (digit && idx === 5 && next.every(d => d !== '')) {
       otpRefs.current[5]?.blur();
       const code = next.join('');
-      setTimeout(() => isNativeApp ? verifyNative(verificationId, code) : verifyWeb(code), 120);
+      setTimeout(() => verifyWeb(code), 120);
     }
   };
   const handleOtpKey = (e, idx) => {
@@ -222,7 +177,7 @@ export default function LoginPage() {
   const verifyOtp = () => {
     const code = otp.join('');
     if (code.length !== 6) return;
-    isNativeApp ? verifyNative(verificationId, code) : verifyWeb(code);
+    verifyWeb(code);
   };
 
   const resendOtp = async () => {
@@ -312,6 +267,7 @@ export default function LoginPage() {
         {/* PHONE */}
         {step === STEPS.PHONE && (
           <>
+            <div id="recaptcha-container" />
             <div className="flex gap-2">
               <div className="w-16 bg-white border border-stone-200 rounded-xl flex items-center justify-center text-stone-600 font-semibold text-sm shadow-sm shrink-0">+91</div>
               <input className="input-field flex-1 text-lg font-semibold tracking-widest"

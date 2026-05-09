@@ -37,6 +37,7 @@ export default function ChatPage() {
   const [isOnline,       setIsOnline]       = useState(false);
   const [lastSeenAt,     setLastSeenAt]     = useState(null);
   const [partnerTyping,  setPartnerTyping]  = useState(false);
+  const [acceptedOffers, setAcceptedOffers] = useState(() => new Set());
 
   const bottomRef     = useRef(null);
   const typingTimer   = useRef(null);
@@ -56,7 +57,11 @@ export default function ChatPage() {
     socket.emit('join_room', roomId);
     socket.emit('check_online', userId);
 
-    const onMsg       = (msg) => setMessages(prev => prev.find(m => m._id === msg._id) ? prev : [...prev, msg]);
+    const onMsg = (msg) => setMessages(prev => {
+      if (prev.find(m => m._id === msg._id)) return prev;
+      const base = msg.type === 'image' ? prev.filter(m => !m.sending) : prev;
+      return [...base, msg];
+    });
     const onTyping    = () => setPartnerTyping(true);
     const onStop      = () => setPartnerTyping(false);
     const onStatus    = ({ isOnline: o, lastSeenAt: ls }) => { setIsOnline(o); setLastSeenAt(ls); };
@@ -112,7 +117,7 @@ export default function ChatPage() {
     setShowOfferPanel(false); setOfferAmount(''); setSendingOffer(false);
   };
 
-  const acceptOffer = async (amount) => {
+  const acceptOffer = async (amount, msgId) => {
     try {
       const myRes = await api.get('/parcels/my');
       let parcel = myRes.data.parcels.find(p => {
@@ -124,6 +129,7 @@ export default function ChatPage() {
       if (!parcel) { toast.error('No active parcel request found.'); return; }
       if (parcel.status === 'open') { await api.post(`/parcels/${parcel._id}/accept`, { offeredPrice: amount }); toast.success(`Accepted! ₹${amount} locked in 🤝`); }
       else { await api.patch(`/parcels/${parcel._id}`, { offeredPrice: amount }); toast.success(`₹${amount} agreed!`); }
+      if (msgId != null) setAcceptedOffers(prev => new Set([...prev, msgId]));
     } catch (err) { toast.error(err.response?.data?.message || 'Could not update parcel'); }
   };
 
@@ -134,8 +140,18 @@ export default function ChatPage() {
     setSendingImage(true);
     const reader = new FileReader();
     reader.onload = async (ev) => {
-      try { await sendMessage('[📷 Image]', 'image', null, ev.target.result); }
-      catch { toast.error('Failed to send image'); }
+      const dataUrl = ev.target.result;
+      const tempId  = `temp_img_${Date.now()}`;
+      setMessages(prev => [...prev, {
+        _id: tempId, senderId: user._id, type: 'image',
+        imageUrl: dataUrl, text: '[📷 Image]',
+        timestamp: new Date().toISOString(), sending: true,
+      }]);
+      try { await sendMessage('[📷 Image]', 'image', null, dataUrl); }
+      catch {
+        toast.error('Failed to send image');
+        setMessages(prev => prev.filter(m => m._id !== tempId));
+      }
       finally { setSendingImage(false); e.target.value = ''; }
     };
     reader.readAsDataURL(file);
@@ -232,22 +248,43 @@ export default function ChatPage() {
                       <IndianRupee size={14} />Offer: ₹{msg.amount}
                     </div>
                     {!mine && (
-                      <div className="flex gap-2">
-                        <button onClick={() => acceptOffer(msg.amount)}
-                          className="flex-1 flex items-center justify-center gap-1 bg-emerald-500 text-white text-xs font-semibold py-1.5 rounded-lg">
-                          <Check size={12} /> Accept
-                        </button>
-                        <button onClick={() => { setOfferAmount(String(msg.amount)); setShowOfferPanel(true); }}
-                          className="flex-1 bg-stone-100 text-stone-600 text-xs font-semibold py-1.5 rounded-lg">
-                          Counter
-                        </button>
-                      </div>
+                      acceptedOffers.has(msg._id) ? (
+                        <div className="flex items-center gap-1 text-emerald-600 text-xs font-semibold pt-1">
+                          <Check size={12} /> Accepted
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <button onClick={() => acceptOffer(msg.amount, msg._id)}
+                            className="flex-1 flex items-center justify-center gap-1 bg-emerald-500 text-white text-xs font-semibold py-1.5 rounded-lg">
+                            <Check size={12} /> Accept
+                          </button>
+                          <button onClick={() => { setOfferAmount(String(msg.amount)); setShowOfferPanel(true); }}
+                            className="flex-1 bg-stone-100 text-stone-600 text-xs font-semibold py-1.5 rounded-lg">
+                            Counter
+                          </button>
+                        </div>
+                      )
                     )}
                   </div>
                 ) : isImg ? (
-                  <div className={`max-w-[72%] rounded-2xl overflow-hidden ${mine ? 'rounded-br-sm' : 'rounded-bl-sm'}`}>
-                    <img src={msg.imageUrl} alt="sent" className="w-full object-cover cursor-pointer"
-                      style={{ maxHeight: 220 }} onClick={() => window.open(msg.imageUrl, '_blank')} />
+                  <div className={`max-w-[72%] rounded-2xl overflow-hidden relative ${mine ? 'rounded-br-sm' : 'rounded-bl-sm'}`}>
+                    <img src={msg.imageUrl} alt="sent"
+                      className={`w-full object-cover ${msg.sending ? 'opacity-60 cursor-default' : 'cursor-pointer'}`}
+                      style={{ maxHeight: 220 }}
+                      onClick={() => !msg.sending && window.open(msg.imageUrl, '_blank')} />
+                    {msg.sending && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                        <svg className="animate-spin h-6 w-6 text-white" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                        </svg>
+                      </div>
+                    )}
+                    {mine && !msg.sending && (
+                      <div className="absolute bottom-1 right-2">
+                        <Check size={10} className="text-white drop-shadow" />
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className={`max-w-[78%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed

@@ -40,10 +40,12 @@ const app = express();
 const httpServer = createServer(app);
 
 // Origins that are always allowed regardless of FRONTEND_URL:
-// - Capacitor Android WebView uses http://localhost
+// - Capacitor Android WebView now uses https://app.kabutar.in (custom hostname)
+// - Legacy: http://localhost (old Capacitor default before hostname config)
 // - Capacitor iOS uses capacitor://localhost or ionic://localhost
 // - No origin = native mobile HTTP clients (axios from inside WebView)
 const CAPACITOR_ORIGINS = [
+  'https://app.kabutar.in',
   'http://localhost',
   'http://localhost:5173',
   'capacitor://localhost',
