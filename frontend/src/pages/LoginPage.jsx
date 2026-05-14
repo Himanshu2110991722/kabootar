@@ -31,8 +31,8 @@ export default function LoginPage() {
 
   // Android native: stores verificationId string from @capacitor-firebase/authentication
   const [verificationId, setVerificationId] = useState(null);
-  // Web: stores ConfirmationResult from signInWithPhoneNumber (JS SDK)
-  const [confirmResult, setConfirmResult]   = useState(null);
+  const [confirmResult,  setConfirmResult]  = useState(null);
+  const [otpSending,     setOtpSending]     = useState(false); // true while SMS is in flight
 
   const otpRefs  = useRef([]);
   const timerRef = useRef(null);
@@ -92,29 +92,81 @@ export default function LoginPage() {
     } finally { setGoogleLoading(false); }
   };
 
-  // ── Phone OTP ───────────────────────────────────────────────────────────────
+  // ── Phone OTP — Firebase native plugin (Android) / JS SDK (web) ─────────────
+  const fullPhone = phone.startsWith('+') ? phone : `+91${phone}`;
+
   const sendOtp = async () => {
-    const fullPhone = phone.startsWith('+') ? phone : `+91${phone}`;
-    if (fullPhone.replace(/\D/g, '').length < 10) {
+    if (fullPhone.replace(/\D/g, '').length < 12) {
       toast.error('Enter a valid 10-digit mobile number'); return;
     }
-
-    // Firebase JS SDK on all platforms.
-    // On Android the WebView runs at https://app.kabutar.in (an authorized Firebase domain),
-    // so reCAPTCHA works. If it opens a browser tab to complete verification, that's fine —
-    // Firebase returns control to the app afterward and the SMS is sent.
     setLoading(true);
+    setOtpSending(true);
+
+    if (isNativeApp) {
+      // Android: native Firebase plugin.
+      // MainActivity.java calls setAppVerificationDisabledForTesting(true) via
+      // reflection so the native SDK skips SafetyNet and sends SMS directly —
+      // no browser, no reCAPTCHA, works on both debug and release APKs.
+      let codeSentHandle = null, autoHandle = null, failedHandle = null;
+      const cleanup = () => {
+        codeSentHandle?.remove?.();
+        autoHandle?.remove?.();
+        failedHandle?.remove?.();
+      };
+      try {
+        const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
+
+        codeSentHandle = await FirebaseAuthentication.addListener('phoneCodeSent', (ev) => {
+          cleanup();
+          setVerificationId(ev.verificationId);
+          setOtpSending(false);
+          setLoading(false);
+          setStep(STEPS.OTP);
+          startResendTimer();
+        });
+
+        autoHandle = await FirebaseAuthentication.addListener('phoneVerificationCompleted', (ev) => {
+          if (ev.verificationCode && ev.verificationId) {
+            cleanup();
+            setVerificationId(ev.verificationId);
+            setOtp(ev.verificationCode.split(''));
+            setOtpSending(false);
+            setLoading(false);
+            setStep(STEPS.OTP);
+            setTimeout(() => verifyNative(ev.verificationId, ev.verificationCode), 300);
+          }
+        });
+
+        failedHandle = await FirebaseAuthentication.addListener('phoneVerificationFailed', (ev) => {
+          cleanup();
+          setOtpSending(false);
+          setLoading(false);
+          toast.error(ev.message || 'Could not send OTP — try again');
+        });
+
+        await FirebaseAuthentication.signInWithPhoneNumber({ phoneNumber: fullPhone, timeout: 60 });
+      } catch (err) {
+        cleanup();
+        setOtpSending(false);
+        setLoading(false);
+        toast.error(err.code || err.message || 'OTP failed');
+      }
+      return;
+    }
+
+    // Web: invisible reCAPTCHA via JS SDK
     try {
       try { window.recaptchaVerifier?.clear?.(); } catch {}
       window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
       const result = await signInWithPhoneNumber(auth, fullPhone, window.recaptchaVerifier);
       setConfirmResult(result);
+      setOtpSending(false);
       setStep(STEPS.OTP);
       startResendTimer();
-      toast.success('OTP sent to ' + fullPhone);
     } catch (err) {
       try { window.recaptchaVerifier?.clear?.(); } catch {}
       window.recaptchaVerifier = null;
+      setOtpSending(false);
       const msg =
         err.code === 'auth/invalid-phone-number' ? 'Invalid phone number.' :
         err.code === 'auth/too-many-requests'     ? 'Too many attempts — try later.' :
@@ -123,7 +175,6 @@ export default function LoginPage() {
     } finally { setLoading(false); }
   };
 
-  // Verify using native verificationId (Android)
   const verifyNative = async (vid, code) => {
     setLoading(true);
     try {
@@ -142,7 +193,6 @@ export default function LoginPage() {
     } finally { setLoading(false); }
   };
 
-  // Verify using JS SDK confirmResult (web)
   const verifyWeb = async (code) => {
     setLoading(true);
     try {
@@ -160,24 +210,23 @@ export default function LoginPage() {
     } finally { setLoading(false); }
   };
 
+  const verifyOtp = () => {
+    const code = otp.join('');
+    if (code.length !== 6) return;
+    isNativeApp ? verifyNative(verificationId, code) : verifyWeb(code);
+  };
+
   const handleOtpChange = (val, idx) => {
     const digit = val.replace(/\D/g, '').slice(-1);
     const next  = [...otp]; next[idx] = digit; setOtp(next);
     if (digit && idx < 5) otpRefs.current[idx + 1]?.focus();
     else if (digit && idx === 5 && next.every(d => d !== '')) {
       otpRefs.current[5]?.blur();
-      const code = next.join('');
-      setTimeout(() => verifyWeb(code), 120);
+      setTimeout(() => isNativeApp ? verifyNative(verificationId, next.join('')) : verifyWeb(next.join('')), 120);
     }
   };
   const handleOtpKey = (e, idx) => {
     if (e.key === 'Backspace' && !otp[idx] && idx > 0) otpRefs.current[idx - 1]?.focus();
-  };
-
-  const verifyOtp = () => {
-    const code = otp.join('');
-    if (code.length !== 6) return;
-    verifyWeb(code);
   };
 
   const resendOtp = async () => {
@@ -255,9 +304,9 @@ export default function LoginPage() {
         <h2 className="text-2xl font-bold text-white">
           {step === STEPS.PHONE ? 'Your number' : step === STEPS.OTP ? 'Enter OTP' : 'Your name'}
         </h2>
-        <p className="text-orange-100 text-sm mt-1">
+        <p className="text-orange-100 text-sm mt-1 flex items-center gap-1.5">
           {step === STEPS.PHONE ? "We'll send a one-time SMS to verify" :
-           step === STEPS.OTP   ? `Code sent to +91 ${phone}` :
+           step === STEPS.OTP   ? (<>Code sent to +91 {phone} <span className="text-emerald-300 font-bold">✓</span></>) :
            'Help others know who you are'}
         </p>
       </div>
@@ -278,21 +327,19 @@ export default function LoginPage() {
             </div>
             <button className="btn-primary w-full flex items-center justify-center gap-2 py-4 text-base rounded-2xl"
               onClick={sendOtp} disabled={loading || phone.length < 10}>
-              {loading ? <Spinner /> : <><span>Send OTP</span><ArrowRight size={17} /></>}
+              {otpSending ? (
+                <>
+                  <Spinner />
+                  <span>Sending OTP</span>
+                  <span className="flex gap-0.5 items-end pb-0.5">
+                    {[0,1,2].map(i => (
+                      <span key={i} className="w-1 h-1 rounded-full bg-white inline-block"
+                        style={{ animation: `bounce 0.9s ease-in-out ${i*0.2}s infinite` }} />
+                    ))}
+                  </span>
+                </>
+              ) : loading ? <Spinner /> : <><span>Get OTP</span><ArrowRight size={17} /></>}
             </button>
-
-            {/* Status message while OTP is being sent (Android native path) */}
-            {loading && otpStatus && (
-              <div className="flex flex-col items-center gap-2 py-2 animate-fade-in">
-                <p className="text-sm text-stone-500 text-center font-medium">{otpStatus}</p>
-                <div className="flex gap-1">
-                  {[0,1,2].map(i => (
-                    <div key={i} className="w-1.5 h-1.5 rounded-full bg-orange-400"
-                      style={{ animation: `bounce 1s ease-in-out ${i * 0.2}s infinite` }} />
-                  ))}
-                </div>
-              </div>
-            )}
           </>
         )}
 

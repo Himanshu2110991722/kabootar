@@ -10,7 +10,6 @@ import { Plus, X, Calendar, Search, History, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { useLocationFilter } from '../hooks/useLocationFilter';
-import { POPULAR_CITIES } from '../lib/cityCoords';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
@@ -56,19 +55,29 @@ export default function TripsPage() {
 
   const [trips,      setTrips]      = useState([]);
   const [myTrips,    setMyTrips]    = useState([]);
-  const [loading,    setLoading]    = useState(true);
+  const [loading,    setLoading]    = useState(false);
   const [fetchedAt,  setFetchedAt]  = useState(null);
   const [tab,        setTab]        = useState(location.state?.tab === 'mine' ? 'mine' : 'all');
   const [showModal,  setShowModal]  = useState(false);
   const [editingTrip,setEditingTrip]= useState(null);
-  const [search,     setSearch]     = useState({ from: '', to: '', date: '' });
+  const [search,     setSearch]     = useState({
+    from: location.state?.from || '',
+    to:   location.state?.to   || '',
+    date: '',
+  });
   const [activeFilter, setActiveFilter] = useState('all'); // 'all' | 'nearby' | 'recent'
 
   const touchStartY  = useRef(0);
   const [pullDelta,  setPullDelta]  = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
+  const hasSearched = !!(search.from || search.to || search.date);
+
   const fetchTrips = useCallback(async () => {
+    // Don't fetch until user provides at least one route param
+    if (!search.from && !search.to && !search.date) {
+      setTrips([]); setLoading(false); return;
+    }
     setLoading(true);
     try {
       const params = {};
@@ -199,56 +208,41 @@ export default function TripsPage() {
         />
       </div>
 
-      {/* Route + Date search */}
+      {/* Compact search bar */}
       <div className="space-y-2 mb-4">
-        {/* Popular cities quick-select */}
-        <div className="overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
-          <div className="flex gap-1.5">
-            <span className="text-[10px] text-stone-400 font-semibold uppercase tracking-wide self-center shrink-0">Quick:</span>
-            {POPULAR_CITIES.slice(0, 12).map(city => (
-              <button key={city}
-                onClick={() => setSearch(s => ({ ...s, from: city }))}
-                className={`shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                  search.from === city
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-stone-100 text-stone-600 hover:bg-orange-50 hover:text-orange-600'
-                }`}
-              >
-                {city}
-              </button>
-            ))}
-          </div>
-        </div>
-
         <div className="flex gap-2">
-          <input className="input-field flex-1" placeholder="From city" value={search.from}
-            onChange={e => setSearch(s => ({ ...s, from: e.target.value }))} />
-          <input className="input-field flex-1" placeholder="To city" value={search.to}
-            onChange={e => setSearch(s => ({ ...s, to: e.target.value }))} />
-        </div>
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
-            <input type="date" className="input-field pl-8 text-sm" min={today} value={search.date}
-              onChange={e => setSearch(s => ({ ...s, date: e.target.value }))} />
-          </div>
-          <button onClick={fetchTrips} className="btn-primary px-4 py-2.5 flex items-center gap-1.5 text-sm">
-            <Search size={13} /> Search
+          <input className="input-field flex-1 text-sm" placeholder="From city" value={search.from}
+            onChange={e => setSearch(s => ({ ...s, from: e.target.value }))}
+            onKeyDown={e => e.key === 'Enter' && fetchTrips()} />
+          <input className="input-field flex-1 text-sm" placeholder="To city" value={search.to}
+            onChange={e => setSearch(s => ({ ...s, to: e.target.value }))}
+            onKeyDown={e => e.key === 'Enter' && fetchTrips()} />
+          <button onClick={fetchTrips} className="btn-primary px-3 py-2.5 shrink-0">
+            <Search size={15} />
           </button>
           {activeFilters.length > 0 && (
-            <button onClick={clearAll} className="btn-ghost px-3 py-2.5 text-stone-400"><X size={16} /></button>
+            <button onClick={clearAll} className="btn-ghost px-2.5 py-2.5 text-stone-400 shrink-0">
+              <X size={15} />
+            </button>
           )}
         </div>
-        {activeFilters.length > 0 && (
-          <div className="flex gap-1.5 flex-wrap">
-            {activeFilters.map(f => (
-              <button key={f.key} onClick={() => clearFilter(f.key)}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-orange-50 text-orange-600 border border-orange-200">
-                {f.label} <X size={9} />
-              </button>
-            ))}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
+            <input type="date" className="input-field pl-7 text-xs py-2" min={today} value={search.date}
+              onChange={e => setSearch(s => ({ ...s, date: e.target.value }))} />
           </div>
-        )}
+          {activeFilters.length > 0 && (
+            <div className="flex gap-1.5 flex-wrap flex-1">
+              {activeFilters.map(f => (
+                <button key={f.key} onClick={() => clearFilter(f.key)}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-orange-50 text-orange-600 border border-orange-200">
+                  {f.label} <X size={9} />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tabs */}
@@ -265,34 +259,37 @@ export default function TripsPage() {
 
       {/* All Travellers tab */}
       {tab === 'all' && (
-        loading ? <TripSkeletons count={3} /> :
+        !hasSearched ? (
+          <div className="card p-8 text-center animate-fade-in">
+            <div className="text-4xl mb-3">🔍</div>
+            <p className="text-stone-700 font-semibold text-sm mb-1">Search for Travellers</p>
+            <p className="text-stone-400 text-xs leading-relaxed">
+              Enter a From or To city above to find travellers on your route.
+            </p>
+          </div>
+        ) : loading ? <TripSkeletons count={3} /> :
         filteredTrips.length === 0 ? (
           <div className="card p-8 text-center animate-fade-in">
             <div className="text-3xl mb-2">✈️</div>
             <p className="text-stone-600 text-sm font-semibold mb-1">
               {activeFilter === 'nearby' && loc.city
                 ? `No travellers found near ${loc.city}`
-                : 'No travellers found'}
+                : 'No travellers found on this route'}
             </p>
-            {activeFilter !== 'all' && (
+            {activeFilter !== 'all' ? (
               <button onClick={() => setActiveFilter('all')} className="text-orange-500 text-xs font-semibold mt-1">
-                Show all routes
+                Show all results
               </button>
-            )}
-            {activeFilters.length > 0 && activeFilter === 'all' && (
-              <button onClick={clearAll} className="text-orange-500 text-xs font-semibold mt-1">
-                Clear filters
-              </button>
+            ) : (
+              <p className="text-stone-400 text-xs mt-1">Try a different route or date</p>
             )}
           </div>
         ) : (
           <div className="space-y-2">
-            {(activeFilters.length > 0 || activeFilter !== 'all') && (
-              <p className="text-xs text-stone-400">
-                {filteredTrips.length} traveller{filteredTrips.length !== 1 ? 's' : ''}
-                {activeFilter === 'nearby' && loc.city ? ` near ${loc.city}` : ''}
-              </p>
-            )}
+            <p className="text-xs text-stone-400">
+              {filteredTrips.length} traveller{filteredTrips.length !== 1 ? 's' : ''} found
+              {activeFilter === 'nearby' && loc.city ? ` near ${loc.city}` : ''}
+            </p>
             {renderStaggered(filteredTrips, trip => <TripCard trip={trip} />)}
           </div>
         )

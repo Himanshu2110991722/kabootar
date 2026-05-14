@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Parcel = require('../models/Parcel');
 const { protect } = require('../middleware/auth');
-const { sendPush } = require('../utils/notifications');
+const { notify } = require('../utils/notifications');
 
 const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -111,10 +111,11 @@ router.post('/delivery/verify', protect, async (req, res) => {
     await parcel.save();
 
     // Notify sender that parcel was delivered
-    sendPush(parcel.userId, {
+    notify(parcel.userId, {
       title: '✅ Parcel delivered!',
       body:  `Your parcel from ${parcel.fromCity} → ${parcel.toCity} has been delivered`,
-      data:  { type: 'delivered', parcelId: String(parcel._id) },
+      type:  'parcel',
+      data:  { type: 'delivered', parcelId: String(parcel._id), screen: '/my-parcels' },
     });
 
     res.json({ parcel, message: 'Delivery confirmed' });

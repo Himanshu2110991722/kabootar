@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
-import { Shield, CheckCircle, XCircle, Users, ChevronLeft, Search, ExternalLink, Clock } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, Users, ChevronLeft, Search, ExternalLink, Clock, Megaphone, Plus, Trash2, Pin } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 
 // ── Admin guard ───────────────────────────────────────────────────────────────
@@ -89,22 +89,24 @@ function AdminDashboard() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-stone-100 rounded-xl p-1 mx-4 mt-4">
-        <button
-          onClick={() => setTab('kyc')}
-          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5 ${tab === 'kyc' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}
-        >
-          <Clock size={14} /> KYC Queue
+        <button onClick={() => setTab('kyc')}
+          className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1 ${tab === 'kyc' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
+          <Clock size={13} /> KYC
         </button>
-        <button
-          onClick={() => setTab('users')}
-          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5 ${tab === 'users' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}
-        >
-          <Users size={14} /> All Users
+        <button onClick={() => setTab('announcements')}
+          className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1 ${tab === 'announcements' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
+          <Megaphone size={13} /> Posts
+        </button>
+        <button onClick={() => setTab('users')}
+          className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1 ${tab === 'users' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
+          <Users size={13} /> Users
         </button>
       </div>
 
       <div className="px-4 py-4">
-        {tab === 'kyc' ? <KycQueue /> : <UserList />}
+        {tab === 'kyc'           && <KycQueue />}
+        {tab === 'announcements' && <AnnouncementsManager />}
+        {tab === 'users'         && <UserList />}
       </div>
     </div>
   );
@@ -273,6 +275,116 @@ function DocThumb({ label, url }) {
         >
           <ExternalLink size={14} /> View PDF
         </a>
+      )}
+    </div>
+  );
+}
+
+// ── Announcements Manager ─────────────────────────────────────────────────────
+const ANNOUNCE_TYPES = ['info', 'warning', 'alert', 'feature'];
+const TYPE_COLOR = { info: 'bg-blue-50 border-blue-200', warning: 'bg-amber-50 border-amber-200', alert: 'bg-red-50 border-red-200', feature: 'bg-orange-50 border-orange-200' };
+
+function AnnouncementsManager() {
+  const [items,   setItems]   = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form,    setForm]    = useState({ title: '', body: '', icon: '📢', type: 'info', pinned: false, expiresAt: '' });
+  const [saving,  setSaving]  = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    const r = await api.get('/announcements/all').catch(() => ({ data: { announcements: [] } }));
+    setItems(r.data.announcements || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const create = async () => {
+    if (!form.title.trim() || !form.body.trim()) { toast.error('Title and body required'); return; }
+    setSaving(true);
+    try {
+      await api.post('/announcements', { ...form, expiresAt: form.expiresAt || null });
+      toast.success('Announcement published');
+      setForm({ title: '', body: '', icon: '📢', type: 'info', pinned: false, expiresAt: '' });
+      load();
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
+    finally { setSaving(false); }
+  };
+
+  const toggle = async (id, active) => {
+    await api.patch(`/announcements/${id}`, { active }).catch(() => {});
+    setItems(prev => prev.map(a => a._id === id ? { ...a, active } : a));
+  };
+
+  const remove = async (id) => {
+    if (!confirm('Delete this announcement?')) return;
+    await api.delete(`/announcements/${id}`).catch(() => {});
+    setItems(prev => prev.filter(a => a._id !== id));
+    toast.success('Deleted');
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Create form */}
+      <div className="bg-white border border-stone-200 rounded-2xl p-4 space-y-3">
+        <h3 className="font-bold text-stone-900 text-sm flex items-center gap-2"><Plus size={14} /> New Announcement</h3>
+        <div className="flex gap-2">
+          <input className="input-field w-14 text-center text-lg" placeholder="📢" value={form.icon}
+            onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} />
+          <select className="input-field flex-1 text-sm" value={form.type}
+            onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
+            {ANNOUNCE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <input className="input-field w-full text-sm" placeholder="Title" value={form.title}
+          onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+        <textarea className="input-field w-full text-sm resize-none" rows={3} placeholder="Body text…"
+          value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} />
+        <div className="flex gap-3 items-center">
+          <label className="flex items-center gap-2 text-xs font-semibold text-stone-600 cursor-pointer">
+            <input type="checkbox" checked={form.pinned} onChange={e => setForm(f => ({ ...f, pinned: e.target.checked }))} />
+            <Pin size={12} /> Pinned
+          </label>
+          <input type="date" className="input-field flex-1 text-xs" placeholder="Expires (optional)"
+            value={form.expiresAt} onChange={e => setForm(f => ({ ...f, expiresAt: e.target.value }))} />
+        </div>
+        <button onClick={create} disabled={saving} className="btn-primary w-full text-sm">
+          {saving ? 'Publishing…' : 'Publish Announcement'}
+        </button>
+      </div>
+
+      {/* Existing announcements */}
+      {loading ? (
+        <div className="text-center text-stone-400 text-sm py-8">Loading…</div>
+      ) : items.length === 0 ? (
+        <div className="text-center text-stone-400 text-sm py-8 bg-white rounded-2xl border border-stone-100">No announcements yet</div>
+      ) : (
+        <div className="space-y-2">
+          {items.map(a => (
+            <div key={a._id} className={`border rounded-2xl px-4 py-3 flex gap-3 items-start ${TYPE_COLOR[a.type] || 'bg-stone-50 border-stone-100'} ${!a.active ? 'opacity-50' : ''}`}>
+              <span className="text-xl shrink-0">{a.icon}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-bold text-stone-900">{a.title}</p>
+                  {a.pinned && <span className="text-[9px] bg-orange-500 text-white px-1.5 py-0.5 rounded-full font-bold uppercase">Pinned</span>}
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase ${a.active ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
+                    {a.active ? 'Live' : 'Off'}
+                  </span>
+                </div>
+                <p className="text-xs text-stone-500 mt-0.5 line-clamp-2">{a.body}</p>
+                <p className="text-[10px] text-stone-400 mt-1">{format(new Date(a.createdAt), 'dd MMM yyyy')}</p>
+              </div>
+              <div className="flex flex-col gap-1.5 shrink-0">
+                <button onClick={() => toggle(a._id, !a.active)}
+                  className={`text-[10px] font-bold px-2 py-1 rounded-lg ${a.active ? 'bg-stone-200 text-stone-600' : 'bg-emerald-500 text-white'}`}>
+                  {a.active ? 'Hide' : 'Show'}
+                </button>
+                <button onClick={() => remove(a._id)} className="text-[10px] font-bold px-2 py-1 rounded-lg bg-red-100 text-red-500">
+                  <Trash2 size={11} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

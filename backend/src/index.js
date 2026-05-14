@@ -34,7 +34,10 @@ const chatRoutes = require('./routes/chat');
 const otpRoutes = require('./routes/otp');
 const kycRoutes = require('./routes/kyc');
 const userRoutes = require('./routes/users');
-const adminRoutes = require('./routes/admin');
+const adminRoutes         = require('./routes/admin');
+const announcementRoutes  = require('./routes/announcements');
+const appNotifRoutes      = require('./routes/appNotifications');
+const exploreRoutes       = require('./routes/explore');
 
 const app = express();
 const httpServer = createServer(app);
@@ -124,7 +127,10 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/otp', otpRoutes);
 app.use('/api/kyc', kycRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/api/admin',         adminRoutes);
+app.use('/api/announcements', announcementRoutes);
+app.use('/api/notifications', appNotifRoutes);
+app.use('/api/explore',       exploreRoutes);
 
 // Health check — also used as a keep-alive ping endpoint
 app.get('/health', (_req, res) => res.json({ status: 'ok', app: 'kabootar', ts: Date.now() }));

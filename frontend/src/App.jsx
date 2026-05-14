@@ -17,6 +17,8 @@ import MyParcelsPage from './pages/MyParcelsPage';
 import KYCPage from './pages/KYCPage';
 import CompleteProfilePage from './pages/CompleteProfilePage';
 import AdminPage from './pages/AdminPage';
+import ExplorePage from './pages/ExplorePage';
+import NotificationsPage from './pages/NotificationsPage';
 
 const PrivateRoute = ({ children }) => {
   const { user } = useAuth();
@@ -72,8 +74,10 @@ function AppRoutes() {
         <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/explore" element={<ExplorePage />} />
           <Route path="/trips" element={<TripsPage />} />
           <Route path="/parcels" element={<ParcelsPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/messages" element={<PrivateRoute><ChatListPage /></PrivateRoute>} />
           <Route path="/chat/:userId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
           <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />

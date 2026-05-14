@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../lib/api';
 import ParcelCard from '../components/ParcelCard';
 import PostParcelModal from '../components/PostParcelModal';
@@ -6,11 +7,10 @@ import MatchesModal from '../components/MatchesModal';
 import toast from 'react-hot-toast';
 import LocationFilterBar from '../components/LocationFilterBar';
 import { ParcelSkeletons } from '../components/SkeletonCard';
-import { Plus, X, RefreshCw } from 'lucide-react';
+import { Plus, X, RefreshCw, Search } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { useLocationFilter } from '../hooks/useLocationFilter';
-import { POPULAR_CITIES } from '../lib/cityCoords';
 
 const PULL_THRESHOLD = 64;
 
@@ -37,23 +37,32 @@ export default function ParcelsPage() {
   const { user }  = useAuth();
   const authGate  = useAuthGate();
   const loc       = useLocationFilter();
+  const routerLoc = useLocation();
 
   const [parcels,     setParcels]     = useState([]);
   const [myParcels,   setMyParcels]   = useState([]);
-  const [loading,     setLoading]     = useState(true);
+  const [loading,     setLoading]     = useState(false);
   const [fetchedAt,   setFetchedAt]   = useState(null);
   const [tab,         setTab]         = useState('all');
   const [showModal,    setShowModal]    = useState(false);
   const [matchParcel,  setMatchParcel]  = useState(null);
   const [editingParcel,setEditingParcel]= useState(null);
-  const [search,      setSearch]      = useState({ from: '', to: '' });
+  const [search,      setSearch]      = useState({
+    from: routerLoc.state?.from || '',
+    to:   routerLoc.state?.to   || '',
+  });
   const [activeFilter,setActiveFilter]= useState('all');
 
   const touchStartY  = useRef(0);
   const [pullDelta,  setPullDelta]  = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
+  const hasSearched = !!(search.from || search.to);
+
   const fetchParcels = useCallback(async () => {
+    if (!search.from && !search.to) {
+      setParcels([]); setLoading(false); return;
+    }
     setLoading(true);
     try {
       const params = {};
@@ -148,33 +157,21 @@ export default function ParcelsPage() {
         />
       </div>
 
-      {/* Popular cities quick-select */}
-      <div className="overflow-x-auto pb-0.5 mb-2" style={{ scrollbarWidth: 'none' }}>
-        <div className="flex gap-1.5">
-          <span className="text-[10px] text-stone-400 font-semibold uppercase tracking-wide self-center shrink-0">Quick:</span>
-          {POPULAR_CITIES.slice(0, 12).map(city => (
-            <button key={city}
-              onClick={() => setSearch(s => ({ ...s, from: city }))}
-              className={`shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                search.from === city
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-stone-100 text-stone-600 hover:bg-orange-50 hover:text-orange-600'
-              }`}
-            >
-              {city}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Route search */}
+      {/* Compact route search */}
       <div className="flex gap-2 mb-4">
-        <input className="input-field flex-1" placeholder="From city" value={search.from}
-          onChange={e => setSearch(s => ({ ...s, from: e.target.value }))} />
-        <input className="input-field flex-1" placeholder="To city" value={search.to}
-          onChange={e => setSearch(s => ({ ...s, to: e.target.value }))} />
+        <input className="input-field flex-1 text-sm" placeholder="From city" value={search.from}
+          onChange={e => setSearch(s => ({ ...s, from: e.target.value }))}
+          onKeyDown={e => e.key === 'Enter' && fetchParcels()} />
+        <input className="input-field flex-1 text-sm" placeholder="To city" value={search.to}
+          onChange={e => setSearch(s => ({ ...s, to: e.target.value }))}
+          onKeyDown={e => e.key === 'Enter' && fetchParcels()} />
+        <button onClick={fetchParcels} className="btn-primary px-3 py-2.5 shrink-0">
+          <Search size={15} />
+        </button>
         {(search.from || search.to) && (
-          <button onClick={() => setSearch({ from: '', to: '' })} className="btn-ghost px-3"><X size={16} /></button>
+          <button onClick={() => setSearch({ from: '', to: '' })} className="btn-ghost px-2.5 text-stone-400 shrink-0">
+            <X size={15} />
+          </button>
         )}
       </div>
 
@@ -190,26 +187,36 @@ export default function ParcelsPage() {
         </button>
       </div>
 
-      {loading ? <ParcelSkeletons count={3} /> :
+      {tab === 'all' && !hasSearched ? (
+        <div className="card p-8 text-center animate-fade-in">
+          <div className="text-4xl mb-3">📦</div>
+          <p className="text-stone-700 font-semibold text-sm mb-1">Search for Parcel Requests</p>
+          <p className="text-stone-400 text-xs leading-relaxed">
+            Enter a From or To city above to find open parcel requests on your route.
+          </p>
+        </div>
+      ) : loading ? <ParcelSkeletons count={3} /> :
        filtered.length === 0 ? (
         <div className="card p-8 text-center animate-fade-in">
           <div className="text-3xl mb-2">📦</div>
           <p className="text-stone-600 text-sm font-semibold mb-1">
             {activeFilter === 'nearby' && loc.city
               ? `No parcels found near ${loc.city}`
-              : tab === 'mine' ? 'No requests yet' : 'No open requests'}
+              : tab === 'mine' ? 'No requests yet' : 'No parcel requests on this route'}
           </p>
-          {activeFilter !== 'all' && (
+          {activeFilter !== 'all' ? (
             <button onClick={() => setActiveFilter('all')} className="text-orange-500 text-xs font-semibold mt-1">
-              Show all routes
+              Show all results
             </button>
+          ) : tab !== 'mine' && (
+            <p className="text-stone-400 text-xs mt-1">Try a different route</p>
           )}
         </div>
        ) : (
         <div className="space-y-2">
-          {(activeFilter !== 'all') && (
+          {hasSearched && (
             <p className="text-xs text-stone-400">
-              {filtered.length} parcel{filtered.length !== 1 ? 's' : ''}
+              {filtered.length} request{filtered.length !== 1 ? 's' : ''} found
               {activeFilter === 'nearby' && loc.city ? ` near ${loc.city}` : ''}
             </p>
           )}

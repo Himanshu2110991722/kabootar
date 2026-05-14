@@ -3,24 +3,26 @@ const router = express.Router();
 const Parcel = require('../models/Parcel');
 const { protect } = require('../middleware/auth');
 const { upload, getFileUrl } = require('../utils/upload');
-const { sendPush } = require('../utils/notifications');
+const { notify } = require('../utils/notifications');
 
-// GET /api/parcels - List all open parcels (public)
+// GET /api/parcels — search open parcels (requires from or to; returns empty otherwise)
 router.get('/', async (req, res) => {
   try {
     const { from, to, status } = req.query;
-    const filter = {};
 
+    // Require at least one search param — prevents public listing dumps
+    if (!from && !to) return res.json({ parcels: [] });
+
+    const filter = {};
     if (status) filter.status = status;
     else filter.status = 'open';
 
-    // Hide parcels older than 30 days from the public listing (they expire automatically)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     filter.createdAt = { $gte: thirtyDaysAgo };
 
     if (from) filter.fromCity = { $regex: new RegExp(from, 'i') };
-    if (to) filter.toCity = { $regex: new RegExp(to, 'i') };
+    if (to)   filter.toCity   = { $regex: new RegExp(to,   'i') };
 
     const parcels = await Parcel.find(filter)
       .populate('userId', 'name profileImage maskedPhone rating totalRatings kycStatus')
@@ -55,6 +57,12 @@ router.post('/', protect, async (req, res) => {
 
     if (!fromCity || !toCity || !weight || !itemType || !description) {
       return res.status(400).json({ message: 'All required fields must be provided' });
+    }
+
+    // Anti-spam: max 5 open parcel requests per user
+    const openCount = await Parcel.countDocuments({ userId: req.user._id, status: 'open' });
+    if (openCount >= 5) {
+      return res.status(429).json({ message: 'You already have 5 open parcel requests. Cancel one before posting another.' });
     }
 
     const parcel = await Parcel.create({
@@ -125,11 +133,11 @@ router.post('/:id/accept', protect, async (req, res) => {
     await parcel.populate('userId', 'name maskedPhone rating');
     await parcel.populate('travelerId', 'name maskedPhone rating');
 
-    // Notify sender that a traveler accepted their parcel
-    sendPush(parcel.userId._id || parcel.userId, {
+    notify(parcel.userId._id || parcel.userId, {
       title: '🎉 Traveler accepted your parcel!',
       body:  `${req.user.name} will carry your parcel from ${parcel.fromCity} → ${parcel.toCity}`,
-      data:  { type: 'parcel_accepted', parcelId: String(parcel._id) },
+      type:  'parcel',
+      data:  { type: 'parcel_accepted', parcelId: String(parcel._id), screen: '/my-parcels' },
     });
 
     res.json({ parcel });

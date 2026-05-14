@@ -208,6 +208,22 @@ async function clearToken(userId) {
   await User.findByIdAndUpdate(userId, { fcmToken: '' }).catch(() => {});
 }
 
+// ── In-app notification storage ───────────────────────────────────────────────
+
+/**
+ * Save a notification to the AppNotification collection (in-app inbox).
+ * Also sends a push if the user has an FCM token.
+ * Never throws — call fire-and-forget.
+ */
+async function notify(userId, { title, body = '', type = 'system', data = {} }) {
+  if (!userId) return;
+  try {
+    const AppNotification = require('../models/AppNotification');
+    await AppNotification.create({ userId, title, body, type, data });
+    await sendPush(userId, { title, body, data: { ...data, type } });
+  } catch {}
+}
+
 module.exports = {
   sendPush,
   sendToMany,
@@ -216,4 +232,5 @@ module.exports = {
   unsubscribeTokenFromTopics,
   cityTopic,
   routeTopic,
+  notify,
 };

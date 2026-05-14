@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
+const jwt   = require('jsonwebtoken');
 const admin = require('firebase-admin');
-const User = require('../models/User');
+const User  = require('../models/User');
 
 // Initialize firebase admin lazily
 let firebaseInitialized = false;

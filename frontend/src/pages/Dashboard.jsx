@@ -1,54 +1,44 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useAuthGate } from '../hooks/useAuthGate';
 import api from '../lib/api';
-import TripCard from '../components/TripCard';
-import ParcelCard from '../components/ParcelCard';
 import PostTripModal from '../components/PostTripModal';
 import PostParcelModal from '../components/PostParcelModal';
-import { TripCardSkeleton, ParcelCardSkeleton } from '../components/SkeletonCard';
-import { Send, Package, ArrowRight, AlertTriangle, ChevronRight, MapPin } from 'lucide-react';
-import { useLocationFilter } from '../hooks/useLocationFilter';
+import { POPULAR_CITIES } from '../lib/cityCoords';
+import {
+  Send, Package, ArrowRight, ChevronRight,
+  TrendingUp, Megaphone, Compass, Search, Calendar,
+  X, ArrowLeftRight, MapPin,
+} from 'lucide-react';
 
-// ── Animated counter — counts from 0 to target when element enters viewport ──
-function CountUp({ value, decimals = 0 }) {
-  const [display, setDisplay] = useState(0);
-  const triggered = useRef(false);
-  const ref = useRef(null);
+const today = new Date().toISOString().split('T')[0];
 
+function CountUp({ value }) {
+  const [n, setN] = useState(0);
+  const done = useRef(false);
+  const ref  = useRef(null);
   useEffect(() => {
-    const target = parseFloat(value) || 0;
+    const target = parseInt(value) || 0;
     const obs = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting && !triggered.current) {
-        triggered.current = true;
-        const steps = 28;
-        const interval = 600 / steps;
-        let step = 0;
-        const t = setInterval(() => {
-          step++;
-          setDisplay(target * (step / steps));
-          if (step >= steps) { setDisplay(target); clearInterval(t); }
-        }, interval);
-      }
-    }, { threshold: 0.6 });
+      if (!e.isIntersecting || done.current) return;
+      done.current = true;
+      let step = 0; const steps = 25;
+      const iv = setInterval(() => {
+        step++;
+        setN(Math.round(target * (step / steps)));
+        if (step >= steps) clearInterval(iv);
+      }, 500 / steps);
+    }, { threshold: 0.5 });
     if (ref.current) obs.observe(ref.current);
     return () => obs.disconnect();
   }, [value]);
-
-  return (
-    <span ref={ref}>
-      {decimals > 0 ? display.toFixed(decimals) : Math.round(display)}
-    </span>
-  );
+  return <span ref={ref}>{n}</span>;
 }
 
-// ── helpers ──────────────────────────────────────────────────────────────────
 const getGreeting = () => {
   const h = new Date().getHours();
-  if (h < 12) return 'morning';
-  if (h < 17) return 'afternoon';
-  return 'evening';
+  return h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
 };
 
 const calcPct = (user) => {
@@ -62,310 +52,382 @@ const calcPct = (user) => {
   return Math.round((checks.filter(Boolean).length / 5) * 100);
 };
 
-// ── main component ────────────────────────────────────────────────────────────
+const ANNOUNCE_STYLE = {
+  info:    'border-stone-100 bg-white',
+  warning: 'border-amber-200 bg-amber-50',
+  alert:   'border-red-200   bg-red-50',
+  feature: 'border-orange-200 bg-orange-50',
+};
+
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate  = useNavigate();
   const authGate  = useAuthGate();
 
-  // public feeds (sliced for display, kept full for route matching)
-  const [allTrips,     setAllTrips]     = useState([]);
-  const [allParcels,   setAllParcels]   = useState([]);
-  const [recentTrips,  setRecentTrips]  = useState([]);
-  const [recentParcels,setRecentParcels]= useState([]);
-  const [loadingTrips,  setLoadingTrips]  = useState(true);
-  const [loadingParcels,setLoadingParcels]= useState(true);
-
-  // user's own counts (for summary line)
-  const [myTrips,   setMyTrips]   = useState([]);
-  const [myParcels, setMyParcels] = useState([]);
-
+  const [searchType,    setSearchType]    = useState('trips');
+  const [heroSearch,    setHeroSearch]    = useState({ from: '', to: '', date: '' });
+  const [fromSuggs,     setFromSuggs]     = useState([]);
+  const [toSuggs,       setToSuggs]       = useState([]);
+  const [showFrom,      setShowFrom]      = useState(false);
+  const [showTo,        setShowTo]        = useState(false);
+  const fromRef = useRef(null);
+  const toRef   = useRef(null);
+  const [stats,         setStats]         = useState({ activeTrips: null, activeRoutes: null, verifiedUsers: null });
+  const [trending,      setTrending]      = useState([]);
+  const [loadingTrend,  setLoadingTrend]  = useState(true);
+  const [announcements, setAnnouncements] = useState([]);
+  const [myTrips,       setMyTrips]       = useState([]);
+  const [myParcels,     setMyParcels]     = useState([]);
   const [showTripModal,   setShowTripModal]   = useState(false);
   const [showParcelModal, setShowParcelModal] = useState(false);
-  const [nearMeOn,        setNearMeOn]        = useState(false);
-  const loc = useLocationFilter();
 
-  const [tripsError,   setTripsError]   = useState(false);
-  const [parcelsError, setParcelsError] = useState(false);
+  useEffect(() => {
+    api.get('/trips/stats').then(r => setStats(r.data)).catch(() => {});
+    api.get('/trips/trending').then(r => setTrending(r.data.routes || [])).catch(() => {}).finally(() => setLoadingTrend(false));
+    api.get('/announcements').then(r => setAnnouncements(r.data.announcements || [])).catch(() => {});
+  }, []);
 
-  const loadFeeds = () => {
-    setTripsError(false);
-    setParcelsError(false);
-    setLoadingTrips(true);
-    setLoadingParcels(true);
-
-    api.get('/trips')
-      .then(r => { setAllTrips(r.data.trips); setRecentTrips(r.data.trips.slice(0, 3)); })
-      .catch(() => setTripsError(true))
-      .finally(() => setLoadingTrips(false));
-
-    api.get('/parcels')
-      .then(r => { setAllParcels(r.data.parcels); setRecentParcels(r.data.parcels.slice(0, 3)); })
-      .catch(() => setParcelsError(true))
-      .finally(() => setLoadingParcels(false));
-  };
-
-  // load public feeds on mount
-  useEffect(() => { loadFeeds(); }, []);
-
-  // load user's own trips/parcels when logged in
   useEffect(() => {
     if (!user?._id) return;
     api.get('/trips/my').then(r => setMyTrips(r.data.trips)).catch(() => {});
     api.get('/parcels/my').then(r => setMyParcels(r.data.parcels)).catch(() => {});
   }, [user?._id]);
 
-  // ── derived values ──────────────────────────────────────────────────────
-  const firstName         = user?.name?.split(' ')[0] || 'there';
-  const activeTripsCount  = myTrips.filter(t => t.status === 'active').length;
+  const firstName           = user?.name?.split(' ')[0] || 'there';
+  const activeTripsCount    = myTrips.filter(t => t.status === 'active').length;
   const pendingParcelsCount = myParcels.filter(p => ['open','requested'].includes(p.status)).length;
-  const pct = calcPct(user);
+  const pct                 = calcPct(user);
+  const frequentFrom        = user?.frequentRoute?.from;
+  const frequentTo          = user?.frequentRoute?.to;
 
-  // Near Me toggle — filter recent feeds by detected city
-  const toggleNearMe = async () => {
-    if (nearMeOn) { setNearMeOn(false); loc.clear(); return; }
-    if (!loc.city) {
-      const city = await loc.detect();
-      if (city) setNearMeOn(true);
-    } else {
-      setNearMeOn(true);
+  const handleSearch = () => {
+    if (!heroSearch.from && !heroSearch.to) {
+      import('react-hot-toast').then(({ default: toast }) => toast.error('Enter From or To city'));
+      return;
     }
+    navigate(searchType === 'trips' ? '/trips' : '/parcels', {
+      state: { from: heroSearch.from, to: heroSearch.to, date: heroSearch.date },
+    });
   };
 
-  const nearMeTrips   = nearMeOn && loc.enabled ? recentTrips.filter(t => loc.matchesNearby(t.fromCity, t.toCity)) : recentTrips;
-  const nearMeParcels = nearMeOn && loc.enabled ? recentParcels.filter(p => loc.matchesNearby(p.fromCity, p.toCity)) : recentParcels;
+  const swapCities = () => {
+    setHeroSearch(s => ({ ...s, from: s.to, to: s.from }));
+    setShowFrom(false); setShowTo(false);
+  };
 
-  const routeFrom = user?.frequentRoute?.from?.toLowerCase();
-  const pendingParcelsOnRoute = routeFrom
-    ? allParcels.filter(p => p.fromCity?.toLowerCase() === routeFrom && ['open','requested'].includes(p.status)).length
-    : 0;
-  const activeTripsOnRoute = routeFrom
-    ? allTrips.filter(t => t.fromCity?.toLowerCase() === routeFrom).length
-    : 0;
+  const filterCities = (val) =>
+    val.trim().length === 0
+      ? POPULAR_CITIES.slice(0, 6)
+      : POPULAR_CITIES.filter(c => c.toLowerCase().includes(val.toLowerCase())).slice(0, 6);
 
-  const summaryLine = user
-    ? (activeTripsCount > 0 || pendingParcelsCount > 0
-        ? `${activeTripsCount} active trip${activeTripsCount !== 1 ? 's' : ''} · ${pendingParcelsCount} pending parcel${pendingParcelsCount !== 1 ? 's' : ''}`
-        : 'Ready to post your next trip?')
-    : 'Browse trips and find travellers';
+  const onFromChange = (val) => {
+    setHeroSearch(s => ({ ...s, from: val }));
+    setFromSuggs(filterCities(val));
+    setShowFrom(true);
+  };
+  const onToChange = (val) => {
+    setHeroSearch(s => ({ ...s, to: val }));
+    setToSuggs(filterCities(val));
+    setShowTo(true);
+  };
+  const pickFrom = (city) => {
+    setHeroSearch(s => ({ ...s, from: city }));
+    setShowFrom(false);
+    toRef.current?.focus();
+  };
+  const pickTo = (city) => {
+    setHeroSearch(s => ({ ...s, to: city }));
+    setShowTo(false);
+  };
+  const hideFrom = () => setTimeout(() => setShowFrom(false), 150);
+  const hideTo   = () => setTimeout(() => setShowTo(false),   150);
 
   return (
-    <div className="px-4 py-5 space-y-4">
+    <div className="px-4 py-4 space-y-4 pb-8">
 
-      {/* ── Gradient hero banner ── */}
-      <div className="bg-gradient-to-br from-orange-500 to-orange-400 rounded-2xl px-5 py-4 text-white">
-        <p className="text-sm text-orange-100 font-medium">
-          Good {getGreeting()} 👋
-        </p>
-        <h1 className="text-2xl font-bold tracking-tight mt-0.5">
-          {user ? firstName : 'Welcome'}
-        </h1>
-        <p className="text-sm text-orange-100 mt-1">{summaryLine}</p>
+      {/* ── HERO + SEARCH ─────────────────────────────────────────── */}
+      <div className="rounded-3xl overflow-hidden"
+        style={{ background: 'linear-gradient(150deg, #f97316 0%, #ea580c 55%, #c2410c 100%)' }}>
+        <div className="px-5 pt-5 pb-5 space-y-4">
 
-        {/* Achievement chips — only when logged in */}
-        {user && (
-          <div className="flex flex-wrap gap-2 mt-3">
-            <span className="bg-white/15 text-white text-xs font-semibold px-2.5 py-1 rounded-full"
-              style={{ animation: 'staggerIn 0.4s ease both', animationDelay: '0.1s' }}>
-              ⭐ <CountUp value={user.rating || 5} decimals={1} /> Rating
-            </span>
-            <span className="bg-white/15 text-white text-xs font-semibold px-2.5 py-1 rounded-full"
-              style={{ animation: 'staggerIn 0.4s ease both', animationDelay: '0.2s' }}>
-              📦 <CountUp value={user.tripsCompleted || 0} /> Trips done
-            </span>
-            {user.kycStatus === 'verified' && (
-              <span className="bg-white/15 text-white text-xs font-semibold px-2.5 py-1 rounded-full"
-                style={{ animation: 'staggerIn 0.4s ease both', animationDelay: '0.3s' }}>
-                ✓ Verified
-              </span>
-            )}
+          {/* Greeting */}
+          <div style={{ animation: 'staggerIn 0.35s ease both' }}>
+            <p className="text-orange-100 text-xs font-semibold">
+              Good {getGreeting()} 👋
+              {user && (activeTripsCount > 0 || pendingParcelsCount > 0) && (
+                <span className="ml-1 opacity-80">
+                  · {activeTripsCount} trip{activeTripsCount !== 1 ? 's' : ''} · {pendingParcelsCount} parcel{pendingParcelsCount !== 1 ? 's' : ''}
+                </span>
+              )}
+            </p>
+            <h1 className="text-white text-[22px] font-black leading-tight mt-0.5">
+              {user ? `Hey, ${firstName}!` : 'Ship smarter with Kabutar'}
+            </h1>
           </div>
-        )}
+
+          {/* White search card */}
+          <div className="bg-white rounded-2xl p-3 space-y-2.5 shadow-lg shadow-orange-900/20"
+            style={{ animation: 'staggerIn 0.35s ease 0.07s both' }}>
+
+            {/* Toggle */}
+            <div className="flex bg-stone-100 rounded-xl p-0.5 gap-0.5">
+              {['trips', 'parcels'].map(t => (
+                <button key={t} onClick={() => setSearchType(t)}
+                  className={`flex-1 py-1.5 rounded-[10px] text-xs font-bold flex items-center justify-center gap-1 transition-all ${
+                    searchType === t
+                      ? 'bg-orange-500 text-white shadow-sm'
+                      : 'text-stone-500'
+                  }`}>
+                  {t === 'trips' ? '✈️ Travellers' : '📦 Parcels'}
+                </button>
+              ))}
+            </div>
+
+            {/* From → To row — grid prevents overflow */}
+            <div className="grid items-start gap-1.5" style={{ gridTemplateColumns: '1fr auto 1fr' }}>
+
+              {/* From */}
+              <div className="relative min-w-0">
+                <div className={`flex items-center gap-2 bg-stone-50 border rounded-xl px-3 py-2.5 transition-all ${showFrom ? 'border-orange-400 ring-2 ring-orange-100' : 'border-stone-200'}`}>
+                  <div className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
+                  <input
+                    ref={fromRef}
+                    className="min-w-0 w-full text-sm font-semibold text-stone-800 bg-transparent outline-none placeholder:text-stone-400 placeholder:font-normal"
+                    placeholder="From"
+                    value={heroSearch.from}
+                    onChange={e => onFromChange(e.target.value)}
+                    onFocus={() => { setFromSuggs(filterCities(heroSearch.from)); setShowFrom(true); }}
+                    onBlur={hideFrom}
+                    onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                    autoComplete="off"
+                  />
+                  {heroSearch.from && (
+                    <button onMouseDown={e => e.preventDefault()} onClick={() => { setHeroSearch(s => ({ ...s, from: '' })); setShowFrom(false); }} className="text-stone-300 hover:text-stone-500 shrink-0">
+                      <X size={11} />
+                    </button>
+                  )}
+                </div>
+                {/* Suggestions */}
+                {showFrom && fromSuggs.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-stone-200 rounded-2xl shadow-xl z-50 overflow-hidden"
+                    style={{ boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
+                    {fromSuggs.map(city => (
+                      <button key={city} onMouseDown={e => e.preventDefault()} onClick={() => pickFrom(city)}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-orange-50 active:bg-orange-100 transition-colors border-b border-stone-50 last:border-0">
+                        <MapPin size={12} className="text-orange-400 shrink-0" />
+                        <span className="text-sm text-stone-700 font-medium">{city}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Swap */}
+              <button onClick={swapCities}
+                className="w-8 h-8 mt-0.5 bg-stone-100 hover:bg-stone-200 rounded-xl flex items-center justify-center transition-all active:scale-90 shrink-0">
+                <ArrowLeftRight size={13} className="text-stone-500" />
+              </button>
+
+              {/* To */}
+              <div className="relative min-w-0">
+                <div className={`flex items-center gap-2 bg-stone-50 border rounded-xl px-3 py-2.5 transition-all ${showTo ? 'border-orange-400 ring-2 ring-orange-100' : 'border-stone-200'}`}>
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                  <input
+                    ref={toRef}
+                    className="min-w-0 w-full text-sm font-semibold text-stone-800 bg-transparent outline-none placeholder:text-stone-400 placeholder:font-normal"
+                    placeholder="To"
+                    value={heroSearch.to}
+                    onChange={e => onToChange(e.target.value)}
+                    onFocus={() => { setToSuggs(filterCities(heroSearch.to)); setShowTo(true); }}
+                    onBlur={hideTo}
+                    onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                    autoComplete="off"
+                  />
+                  {heroSearch.to && (
+                    <button onMouseDown={e => e.preventDefault()} onClick={() => { setHeroSearch(s => ({ ...s, to: '' })); setShowTo(false); }} className="text-stone-300 hover:text-stone-500 shrink-0">
+                      <X size={11} />
+                    </button>
+                  )}
+                </div>
+                {/* Suggestions */}
+                {showTo && toSuggs.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-stone-200 rounded-2xl shadow-xl z-50 overflow-hidden"
+                    style={{ boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
+                    {toSuggs.map(city => (
+                      <button key={city} onMouseDown={e => e.preventDefault()} onClick={() => pickTo(city)}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-orange-50 active:bg-orange-100 transition-colors border-b border-stone-50 last:border-0">
+                        <MapPin size={12} className="text-emerald-400 shrink-0" />
+                        <span className="text-sm text-stone-700 font-medium">{city}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Date — trips only, compact */}
+            {searchType === 'trips' && (
+              <div className="flex items-center gap-2 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-100 transition-all">
+                <Calendar size={13} className="text-stone-400 shrink-0" />
+                <input type="date" min={today}
+                  className="flex-1 text-sm text-stone-600 bg-transparent outline-none font-medium"
+                  value={heroSearch.date}
+                  onChange={e => setHeroSearch(s => ({ ...s, date: e.target.value }))} />
+              </div>
+            )}
+
+            {/* Search CTA */}
+            <button onClick={handleSearch}
+              className="w-full bg-orange-500 hover:bg-orange-600 active:scale-[0.98] text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 transition-all"
+              style={{ boxShadow: '0 4px 16px rgba(249,115,22,0.35)' }}>
+              <Search size={15} />
+              {searchType === 'trips' ? 'Find Travellers' : 'Find Parcels'}
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* ── Profile completion bar (only when logged in + profile incomplete) ── */}
-      {user && !user.isProfileComplete && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <AlertTriangle size={15} className="text-amber-500 shrink-0" />
-            <div>
-              <p className="text-xs font-semibold text-stone-800">Complete your profile to post trips</p>
-              <p className="text-[11px] text-amber-600 mt-0.5">{pct}% done</p>
-            </div>
+
+      {/* ── PROFILE COMPLETION ──────────────────────────────────────── */}
+      {user && pct < 100 && (
+        <button onClick={() => navigate(user?.isProfileComplete ? '/profile' : '/complete-profile')}
+          className="w-full bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center gap-3 active:scale-[0.98] transition-all text-left"
+          style={{ animation: 'staggerIn 0.35s ease 0.12s both' }}>
+          <div className="relative w-10 h-10 shrink-0">
+            <svg className="w-10 h-10 -rotate-90" viewBox="0 0 40 40">
+              <circle cx="20" cy="20" r="16" fill="none" stroke="#fde68a" strokeWidth="3" />
+              <circle cx="20" cy="20" r="16" fill="none" stroke="#f59e0b" strokeWidth="3"
+                strokeDasharray={`${2 * Math.PI * 16 * pct / 100} 999`} strokeLinecap="round" />
+            </svg>
+            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-amber-700">{pct}%</span>
           </div>
-          <button
-            onClick={() => navigate('/complete-profile')}
-            className="text-xs font-bold text-amber-600 hover:text-amber-700 flex items-center gap-0.5 shrink-0 ml-3"
-          >
-            Finish <ChevronRight size={13} />
-          </button>
-        </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-stone-900">Complete your profile</p>
+            <p className="text-[11px] text-amber-600 mt-0.5">Build trust · unlock all features</p>
+          </div>
+          <div className="text-xs font-bold text-amber-700 bg-amber-100 px-3 py-1.5 rounded-xl shrink-0 flex items-center gap-0.5">
+            Finish <ChevronRight size={12} />
+          </div>
+        </button>
       )}
 
-      {/* ── Quick actions ── */}
-      <div className="grid grid-cols-2 gap-3">
-
-        {/* Post a Trip */}
-        <button
-          onClick={() => authGate(() => setShowTripModal(true))}
-          className="relative overflow-hidden rounded-2xl p-4 text-left active:scale-95 transition-all
-                     bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200"
-          style={{ minHeight: '110px' }}
-        >
-          <div className="flex items-start justify-between mb-3">
-            <div className="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center shrink-0">
-              <Send size={17} className="text-white" />
-            </div>
-            {pendingParcelsOnRoute > 0 && (
-              <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full leading-tight">
-                {pendingParcelsOnRoute} waiting
-              </span>
-            )}
+      {/* ── QUICK ACTIONS ──────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-3" style={{ animation: 'staggerIn 0.35s ease 0.15s both' }}>
+        <button onClick={() => authGate(() => setShowTripModal(true))}
+          className="bg-orange-50 border border-orange-100 rounded-2xl p-4 text-left active:scale-[0.97] transition-all">
+          <div className="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center mb-2.5 shadow-sm shadow-orange-200">
+            <Send size={15} className="text-white" />
           </div>
-          <div className="font-semibold text-stone-900 text-sm">Post a Trip</div>
-          <div className="text-xs text-stone-500 mt-0.5">Earn by carrying</div>
-          {/* Decorative circles */}
-          <svg className="absolute bottom-0 right-0 w-16 h-16 opacity-[0.08] text-orange-500 pointer-events-none"
-               viewBox="0 0 64 64" fill="currentColor">
-            <circle cx="52" cy="52" r="32"/>
-            <circle cx="30" cy="42" r="22"/>
-            <circle cx="10" cy="30" r="14"/>
-          </svg>
+          <p className="text-sm font-bold text-stone-900">I'm Travelling</p>
+          <p className="text-[11px] text-stone-400 mt-0.5">Post trip · earn carrying</p>
         </button>
-
-        {/* Send Parcel */}
-        <button
-          onClick={() => authGate(() => setShowParcelModal(true))}
-          className="relative overflow-hidden rounded-2xl p-4 text-left active:scale-95 transition-all
-                     bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200"
-          style={{ minHeight: '110px' }}
-        >
-          <div className="flex items-start justify-between mb-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-500 flex items-center justify-center shrink-0">
-              <Package size={17} className="text-white" />
-            </div>
-            {activeTripsOnRoute > 0 && (
-              <span className="bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full leading-tight">
-                {activeTripsOnRoute} travellers
-              </span>
-            )}
+        <button onClick={() => authGate(() => setShowParcelModal(true))}
+          className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-left active:scale-[0.97] transition-all">
+          <div className="w-9 h-9 rounded-xl bg-blue-500 flex items-center justify-center mb-2.5 shadow-sm shadow-blue-200">
+            <Package size={15} className="text-white" />
           </div>
-          <div className="font-semibold text-stone-900 text-sm">Send Parcel</div>
-          <div className="text-xs text-stone-500 mt-0.5">Find a traveller</div>
-          <svg className="absolute bottom-0 right-0 w-16 h-16 opacity-[0.08] text-blue-500 pointer-events-none"
-               viewBox="0 0 64 64" fill="currentColor">
-            <circle cx="52" cy="52" r="32"/>
-            <circle cx="30" cy="42" r="22"/>
-            <circle cx="10" cy="30" r="14"/>
-          </svg>
+          <p className="text-sm font-bold text-stone-900">Send a Parcel</p>
+          <p className="text-[11px] text-stone-400 mt-0.5">Find someone on your route</p>
         </button>
       </div>
 
-      {/* ── Recent Travellers ── */}
-      <section>
+      {/* ── TRENDING ROUTES ─────────────────────────────────────────── */}
+      <section style={{ animation: 'staggerIn 0.35s ease 0.2s both' }}>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-stone-900">Recent Travellers</h2>
-          <div className="flex items-center gap-2">
-            <button onClick={toggleNearMe}
-              className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-xl transition-all ${
-                nearMeOn
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
-              }`}
-              title={nearMeOn ? `Showing near ${loc.city}` : 'Filter by your location'}
-            >
-              {loc.loading ? <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <MapPin size={11} />}
-              {nearMeOn && loc.city ? loc.city : 'Near Me'}
-            </button>
-            <button onClick={() => navigate('/trips')} className="text-orange-500 text-xs font-semibold flex items-center gap-1">
-              See all <ArrowRight size={12} />
-            </button>
+          <div className="flex items-center gap-1.5">
+            <TrendingUp size={14} className="text-orange-500" />
+            <h2 className="font-bold text-stone-900 text-sm">Trending Routes</h2>
           </div>
+          <button onClick={() => navigate('/explore')}
+            className="text-orange-500 text-xs font-semibold flex items-center gap-0.5">
+            Explore <ArrowRight size={12} />
+          </button>
         </div>
-        {loadingTrips ? (
-          <div className="space-y-2">
-            {[0,1,2].map(i => <TripCardSkeleton key={i} delay={i * 80} />)}
+        {loadingTrend ? (
+          <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+            {[0,1,2,3].map(i => <div key={i} className="h-16 w-28 shrink-0 skeleton-shimmer rounded-2xl" />)}
           </div>
-        ) : tripsError ? (
-          <RetryCard onRetry={loadFeeds} />
-        ) : nearMeTrips.length === 0 ? (
-          <Empty text={nearMeOn && loc.city ? `No travellers near ${loc.city} right now` : 'No trips posted yet'} />
+        ) : trending.length === 0 ? (
+          <p className="text-stone-400 text-xs text-center py-4 bg-stone-50 rounded-2xl border border-stone-100">
+            No active routes yet
+          </p>
         ) : (
-          <div className="space-y-2">
-            {nearMeTrips.map((t, i) => (
-              <div key={t._id} style={{ animation: 'staggerIn 0.35s ease both', animationDelay: `${i * 60}ms` }}>
-                <TripCard trip={t} />
-              </div>
+          <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+            {trending.map((r, i) => (
+              <button key={i}
+                onClick={() => navigate(searchType === 'trips' ? '/trips' : '/parcels', { state: { from: r.from, to: r.to } })}
+                className="shrink-0 bg-white border border-stone-100 rounded-2xl px-3.5 py-2.5 text-left shadow-sm active:scale-95 transition-all"
+                style={{ animation: 'staggerIn 0.3s ease both', animationDelay: `${i * 40}ms` }}>
+                <div className="text-[10px] font-bold text-orange-500 mb-0.5">#{i + 1}</div>
+                <div className="text-xs font-bold text-stone-900 whitespace-nowrap">{r.from} → {r.to}</div>
+                <div className="text-[10px] text-stone-400 mt-0.5">{r.count} traveller{r.count !== 1 ? 's' : ''}</div>
+              </button>
             ))}
           </div>
         )}
       </section>
 
-      {/* ── Open Parcel Requests ── */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-stone-900">Open Requests</h2>
-          <button onClick={() => navigate('/parcels')} className="text-orange-500 text-xs font-semibold flex items-center gap-1">
-            See all <ArrowRight size={12} />
-          </button>
-        </div>
-        {loadingParcels ? (
-          <div className="space-y-2">
-            {[0,1,2].map(i => <ParcelCardSkeleton key={i} delay={i * 80} />)}
+      {/* ── FOR YOU ─────────────────────────────────────────────────── */}
+      {frequentFrom && frequentTo && (
+        <section style={{ animation: 'staggerIn 0.35s ease 0.25s both' }}>
+          <div className="flex items-center gap-1.5 mb-3">
+            <Compass size={14} className="text-orange-500" />
+            <h2 className="font-bold text-stone-900 text-sm">For You</h2>
           </div>
-        ) : parcelsError ? (
-          <RetryCard onRetry={loadFeeds} />
-        ) : nearMeParcels.length === 0 ? (
-          <Empty text={nearMeOn && loc.city ? `No parcel requests near ${loc.city} right now` : 'No parcel requests yet'} />
-        ) : (
+          <div className="bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-100 rounded-2xl px-4 py-4">
+            <p className="text-[10px] text-stone-400 font-semibold uppercase tracking-wide mb-0.5">Your frequent route</p>
+            <p className="font-black text-stone-900">{frequentFrom} → {frequentTo}</p>
+            <div className="flex gap-2 mt-3">
+              <button onClick={() => navigate('/trips', { state: { from: frequentFrom, to: frequentTo } })}
+                className="flex-1 bg-orange-500 text-white text-xs font-bold py-2.5 rounded-xl active:scale-95 transition-all">
+                Find Travellers
+              </button>
+              <button onClick={() => navigate('/parcels', { state: { from: frequentFrom, to: frequentTo } })}
+                className="flex-1 bg-white border border-stone-200 text-stone-700 text-xs font-bold py-2.5 rounded-xl active:scale-95 transition-all">
+                Find Parcels
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── ANNOUNCEMENTS ───────────────────────────────────────────── */}
+      {announcements.length > 0 && (
+        <section style={{ animation: 'staggerIn 0.35s ease 0.3s both' }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-1.5">
+              <Megaphone size={13} className="text-orange-500" />
+              <h2 className="font-bold text-stone-900 text-sm">Community</h2>
+            </div>
+            <button onClick={() => navigate('/notifications')}
+              className="text-orange-500 text-xs font-semibold flex items-center gap-0.5">
+              All <ArrowRight size={12} />
+            </button>
+          </div>
           <div className="space-y-2">
-            {nearMeParcels.map((p, i) => (
-              <div key={p._id} style={{ animation: 'staggerIn 0.35s ease both', animationDelay: `${i * 60}ms` }}>
-                <ParcelCard parcel={p} />
+            {announcements.slice(0, 3).map((a, i) => (
+              <div key={a._id}
+                className={`flex gap-3 border rounded-2xl px-4 py-3 items-start ${ANNOUNCE_STYLE[a.type] || 'border-stone-100 bg-white'}`}
+                style={{ animation: 'staggerIn 0.3s ease both', animationDelay: `${i * 60}ms` }}>
+                <span className="text-xl shrink-0">{a.icon}</span>
+                <div>
+                  <p className="text-xs font-bold text-stone-900">{a.title}</p>
+                  <p className="text-[11px] text-stone-500 mt-0.5 leading-relaxed">{a.body}</p>
+                </div>
               </div>
             ))}
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
       {showTripModal && (
-        <PostTripModal
-          onClose={() => setShowTripModal(false)}
-          onSuccess={trip => {
-            setRecentTrips(prev => [trip, ...prev].slice(0, 3));
-            setAllTrips(prev => [trip, ...prev]);
-            setShowTripModal(false);
-          }}
-        />
+        <PostTripModal onClose={() => setShowTripModal(false)}
+          onSuccess={trip => { setMyTrips(prev => [trip, ...prev]); setShowTripModal(false); }} />
       )}
       {showParcelModal && (
-        <PostParcelModal
-          onClose={() => setShowParcelModal(false)}
-          onSuccess={parcel => {
-            setRecentParcels(prev => [parcel, ...prev].slice(0, 3));
-            setAllParcels(prev => [parcel, ...prev]);
-            setShowParcelModal(false);
-          }}
-        />
+        <PostParcelModal onClose={() => setShowParcelModal(false)}
+          onSuccess={parcel => { setMyParcels(prev => [parcel, ...prev]); setShowParcelModal(false); }} />
       )}
-    </div>
-  );
-}
-
-function Empty({ text }) {
-  return <div className="card p-6 text-center text-stone-400 text-sm">{text}</div>;
-}
-
-function RetryCard({ onRetry }) {
-  return (
-    <div className="card p-5 text-center space-y-3">
-      <p className="text-sm text-stone-500">
-        🌐 Server is warming up — this takes about 30 seconds on first visit.
-      </p>
-      <button onClick={onRetry}
-        className="btn-primary px-6 py-2 text-sm flex items-center gap-2 mx-auto">
-        ↻ Retry
-      </button>
     </div>
   );
 }

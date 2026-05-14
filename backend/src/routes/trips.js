@@ -1,16 +1,51 @@
 const express = require('express');
 const router = express.Router();
 const Trip = require('../models/Trip');
+const User = require('../models/User');
 const { protect } = require('../middleware/auth');
 const { sendToTopic, cityTopic, routeTopic } = require('../utils/notifications');
 
-// GET /api/trips - List all active trips (public)
+// GET /api/trips/stats — live counts for the home hero
+router.get('/stats', async (req, res) => {
+  try {
+    const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+    const [activeTrips, routes, verifiedUsers] = await Promise.all([
+      Trip.countDocuments({ status: 'active', date: { $gte: startOfToday } }),
+      Trip.distinct('fromCity', { status: 'active', date: { $gte: startOfToday } }),
+      User.countDocuments({ kycStatus: 'verified' }),
+    ]);
+    res.json({ activeTrips, activeRoutes: routes.length, verifiedUsers });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// GET /api/trips/trending — top routes by active trip count (used on community home)
+router.get('/trending', async (req, res) => {
+  try {
+    const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+    const routes = await Trip.aggregate([
+      { $match: { status: 'active', date: { $gte: startOfToday } } },
+      { $group: { _id: { from: '$fromCity', to: '$toCity' }, count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 6 },
+      { $project: { _id: 0, from: '$_id.from', to: '$_id.to', count: 1 } },
+    ]);
+    res.json({ routes });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// GET /api/trips — search active trips (requires from or to param; returns empty otherwise)
 router.get('/', async (req, res) => {
   try {
     const { from, to, date } = req.query;
-    const filter = { status: 'active' };
 
-    // Always hide past trips from the public listing
+    // Require at least one search param — prevents public listing dumps and spam
+    if (!from && !to) return res.json({ trips: [] });
+
+    const filter = { status: 'active' };
     const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
 
     if (from) filter.fromCity = { $regex: new RegExp(from, 'i') };
@@ -18,7 +53,6 @@ router.get('/', async (req, res) => {
     if (date) {
       const d    = new Date(date);
       const next = new Date(date); next.setDate(next.getDate() + 1);
-      // If searching a past date, return nothing (trips are already gone)
       filter.date = { $gte: d < startOfToday ? startOfToday : d, $lt: next };
     } else {
       filter.date = { $gte: startOfToday };
@@ -48,12 +82,20 @@ router.get('/my', protect, async (req, res) => {
 // POST /api/trips - Create trip (KYC required)
 router.post('/', protect, async (req, res) => {
   try {
-    // Travelers must have verified KYC to post trips — builds trust for senders
     if (req.user.kycStatus !== 'verified') {
       return res.status(403).json({
         message: 'KYC verification is required to post trips. Complete your KYC from Profile → KYC Verification.',
         requiresKyc: true,
       });
+    }
+
+    // Anti-spam: max 3 active future trips per user
+    const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+    const activeCount = await Trip.countDocuments({
+      userId: req.user._id, status: 'active', date: { $gte: startOfToday },
+    });
+    if (activeCount >= 3) {
+      return res.status(429).json({ message: 'You already have 3 upcoming trips. Complete or delete one before posting another.' });
     }
 
     const { fromCity, toCity, date, transportMode, availableWeight, pricePerKg, notes, pickupStation, dropStation, departureTime, arrivalTime } = req.body;

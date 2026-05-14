@@ -62,6 +62,14 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginDirect = (token, userData) => {
+    localStorage.setItem('kabootar_token', token);
+    localStorage.setItem('kabootar_user', JSON.stringify(userData));
+    setUser(userData);
+    connectSocket(userData._id);
+    initPushNotifications(userData._id).catch(() => {});
+  };
+
   const logout = async () => {
     await auth.signOut().catch(() => {});
     localStorage.removeItem('kabootar_token');
@@ -84,7 +92,7 @@ export const AuthProvider = ({ children }) => {
   }, [user?._id]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refreshUser, setUser }}>
+    <AuthContext.Provider value={{ user, loading, login, loginDirect, logout, refreshUser, setUser }}>
       {children}
     </AuthContext.Provider>
   );
