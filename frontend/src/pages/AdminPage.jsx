@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
-import { Shield, CheckCircle, XCircle, Users, ChevronLeft, Search, ExternalLink, Clock, Megaphone, Plus, Trash2, Pin } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, Users, ChevronLeft, Search, ExternalLink, Clock, Megaphone, Plus, Trash2, Pin, BookOpen, Star, Sparkles } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 
 // ── Admin guard ───────────────────────────────────────────────────────────────
@@ -90,21 +90,26 @@ function AdminDashboard() {
       {/* Tabs */}
       <div className="flex gap-1 bg-stone-100 rounded-xl p-1 mx-4 mt-4">
         <button onClick={() => setTab('kyc')}
-          className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1 ${tab === 'kyc' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
-          <Clock size={13} /> KYC
+          className={`flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1 ${tab === 'kyc' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
+          <Clock size={12} /> KYC
+        </button>
+        <button onClick={() => setTab('posts')}
+          className={`flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1 ${tab === 'posts' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
+          <BookOpen size={12} /> Posts
         </button>
         <button onClick={() => setTab('announcements')}
-          className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1 ${tab === 'announcements' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
-          <Megaphone size={13} /> Posts
+          className={`flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1 ${tab === 'announcements' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
+          <Megaphone size={12} /> Alerts
         </button>
         <button onClick={() => setTab('users')}
-          className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1 ${tab === 'users' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
-          <Users size={13} /> Users
+          className={`flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1 ${tab === 'users' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
+          <Users size={12} /> Users
         </button>
       </div>
 
       <div className="px-4 py-4">
         {tab === 'kyc'           && <KycQueue />}
+        {tab === 'posts'         && <PostsManager />}
         {tab === 'announcements' && <AnnouncementsManager />}
         {tab === 'users'         && <UserList />}
       </div>
@@ -275,6 +280,155 @@ function DocThumb({ label, url }) {
         >
           <ExternalLink size={14} /> View PDF
         </a>
+      )}
+    </div>
+  );
+}
+
+// ── Posts Manager ─────────────────────────────────────────────────────────────
+function PostsManager() {
+  const [posts,   setPosts]   = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving,  setSaving]  = useState(false);
+  const [seeding, setSeeding] = useState(false);
+  const EMPTY = { title: '', content: '', emoji: '🕊️', image: '', stats: { route: '', time: '', saved: '' }, featured: false };
+  const [form, setForm] = useState(EMPTY);
+
+  const load = async () => {
+    setLoading(true);
+    const r = await api.get('/posts').catch(() => ({ data: { posts: [] } }));
+    setPosts(r.data.posts || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const create = async () => {
+    if (!form.title.trim() || !form.content.trim()) { toast.error('Title and content required'); return; }
+    setSaving(true);
+    try {
+      await api.post('/posts', form);
+      toast.success('Post published!');
+      setForm(EMPTY);
+      load();
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
+    finally { setSaving(false); }
+  };
+
+  const toggleActive = async (id, active) => {
+    await api.patch(`/posts/${id}`, { active }).catch(() => {});
+    setPosts(prev => prev.map(p => p._id === id ? { ...p, active } : p));
+  };
+
+  const toggleFeatured = async (id, featured) => {
+    await api.patch(`/posts/${id}`, { featured }).catch(() => {});
+    setPosts(prev => prev.map(p => p._id === id ? { ...p, featured } : p));
+  };
+
+  const remove = async (id) => {
+    if (!confirm('Delete this post?')) return;
+    await api.delete(`/posts/${id}`).catch(() => {});
+    setPosts(prev => prev.filter(p => p._id !== id));
+    toast.success('Deleted');
+  };
+
+  const seed = async () => {
+    setSeeding(true);
+    try {
+      const r = await api.post('/posts/seed');
+      toast.success(r.data.message);
+      load();
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
+    finally { setSeeding(false); }
+  };
+
+  const setStats = (key, val) => setForm(f => ({ ...f, stats: { ...f.stats, [key]: val } }));
+
+  return (
+    <div className="space-y-5">
+      {/* Seed button */}
+      <button onClick={seed} disabled={seeding}
+        className="w-full py-2.5 rounded-xl border-2 border-dashed border-orange-200 text-orange-500 text-sm font-bold flex items-center justify-center gap-2 active:scale-98 transition-all">
+        <Sparkles size={14} /> {seeding ? 'Seeding…' : 'Seed 3 Sample Posts (first time only)'}
+      </button>
+
+      {/* Create form */}
+      <div className="bg-white border border-stone-200 rounded-2xl p-4 space-y-3">
+        <h3 className="font-bold text-stone-900 text-sm flex items-center gap-2"><Plus size={14} /> New Post</h3>
+
+        <div className="flex gap-2">
+          <input className="input-field w-14 text-center text-xl" placeholder="🕊️" value={form.emoji}
+            onChange={e => setForm(f => ({ ...f, emoji: e.target.value }))} />
+          <label className="flex items-center gap-2 text-xs font-semibold text-stone-600 cursor-pointer bg-stone-50 border border-stone-200 rounded-xl px-3">
+            <input type="checkbox" checked={form.featured} onChange={e => setForm(f => ({ ...f, featured: e.target.checked }))} />
+            <Star size={12} className="text-orange-400" /> Story
+          </label>
+        </div>
+
+        <input className="input-field w-full text-sm" placeholder="Title (bold headline)" value={form.title}
+          onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+        <textarea className="input-field w-full text-sm resize-none" rows={4} placeholder="Story content — make it real and impactful…"
+          value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} />
+        <input className="input-field w-full text-xs" placeholder="Image URL (optional)" value={form.image}
+          onChange={e => setForm(f => ({ ...f, image: e.target.value }))} />
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-2">
+          <input className="input-field text-xs" placeholder="📍 Route" value={form.stats.route}
+            onChange={e => setStats('route', e.target.value)} />
+          <input className="input-field text-xs" placeholder="⏱ Time" value={form.stats.time}
+            onChange={e => setStats('time', e.target.value)} />
+          <input className="input-field text-xs" placeholder="💰 Saved" value={form.stats.saved}
+            onChange={e => setStats('saved', e.target.value)} />
+        </div>
+
+        <button onClick={create} disabled={saving} className="btn-primary w-full text-sm">
+          {saving ? 'Publishing…' : 'Publish Post'}
+        </button>
+      </div>
+
+      {/* Existing posts */}
+      {loading ? (
+        <div className="text-center text-stone-400 text-sm py-8">Loading…</div>
+      ) : posts.length === 0 ? (
+        <div className="text-center text-stone-400 text-sm py-8 bg-white rounded-2xl border border-stone-100">
+          No posts yet — seed the samples or create one above
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {posts.map(p => (
+            <div key={p._id} className={`bg-white border rounded-2xl px-4 py-3 ${!p.active ? 'opacity-50 border-stone-100' : 'border-stone-200'}`}>
+              <div className="flex items-start gap-3">
+                <span className="text-2xl shrink-0">{p.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-bold text-stone-900 truncate">{p.title}</p>
+                    {p.featured && <span className="text-[9px] bg-orange-500 text-white px-1.5 py-0.5 rounded-full font-bold">STORY</span>}
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${p.active ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
+                      {p.active ? 'Live' : 'Off'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-stone-400 mt-0.5">
+                    ❤️ {p.likes?.length || 0} · 💬 {p.comments?.length || 0}
+                    {p.stats?.route && ` · ${p.stats.route}`}
+                  </p>
+                </div>
+                <div className="flex flex-col gap-1 shrink-0">
+                  <button onClick={() => toggleFeatured(p._id, !p.featured)}
+                    className={`text-[10px] font-bold px-2 py-1 rounded-lg ${p.featured ? 'bg-orange-100 text-orange-600' : 'bg-stone-100 text-stone-500'}`}>
+                    {p.featured ? '★ Story' : '☆ Story'}
+                  </button>
+                  <button onClick={() => toggleActive(p._id, !p.active)}
+                    className={`text-[10px] font-bold px-2 py-1 rounded-lg ${p.active ? 'bg-stone-200 text-stone-600' : 'bg-emerald-500 text-white'}`}>
+                    {p.active ? 'Hide' : 'Show'}
+                  </button>
+                  <button onClick={() => remove(p._id)} className="text-[10px] font-bold px-2 py-1 rounded-lg bg-red-100 text-red-500">
+                    <Trash2 size={11} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

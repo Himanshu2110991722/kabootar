@@ -38,6 +38,7 @@ const adminRoutes         = require('./routes/admin');
 const announcementRoutes  = require('./routes/announcements');
 const appNotifRoutes      = require('./routes/appNotifications');
 const exploreRoutes       = require('./routes/explore');
+const postRoutes          = require('./routes/posts');
 
 const app = express();
 const httpServer = createServer(app);
@@ -131,6 +132,7 @@ app.use('/api/admin',         adminRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/notifications', appNotifRoutes);
 app.use('/api/explore',       exploreRoutes);
+app.use('/api/posts',         postRoutes);
 
 // Health check — also used as a keep-alive ping endpoint
 app.get('/health', (_req, res) => res.json({ status: 'ok', app: 'kabootar', ts: Date.now() }));

@@ -9,8 +9,9 @@ import { POPULAR_CITIES } from '../lib/cityCoords';
 import {
   Send, Package, ArrowRight, ChevronRight,
   TrendingUp, Megaphone, Compass, Search, Calendar,
-  X, ArrowLeftRight, MapPin,
+  X, ArrowLeftRight, MapPin, Sparkles,
 } from 'lucide-react';
+import PostCard from '../components/PostCard';
 
 const today = new Date().toISOString().split('T')[0];
 
@@ -76,6 +77,8 @@ export default function Dashboard() {
   const [trending,      setTrending]      = useState([]);
   const [loadingTrend,  setLoadingTrend]  = useState(true);
   const [announcements, setAnnouncements] = useState([]);
+  const [posts,         setPosts]         = useState([]);
+  const [activeStory,   setActiveStory]   = useState(null);
   const [myTrips,       setMyTrips]       = useState([]);
   const [myParcels,     setMyParcels]     = useState([]);
   const [showTripModal,   setShowTripModal]   = useState(false);
@@ -85,6 +88,7 @@ export default function Dashboard() {
     api.get('/trips/stats').then(r => setStats(r.data)).catch(() => {});
     api.get('/trips/trending').then(r => setTrending(r.data.routes || [])).catch(() => {}).finally(() => setLoadingTrend(false));
     api.get('/announcements').then(r => setAnnouncements(r.data.announcements || [])).catch(() => {});
+    api.get('/posts').then(r => setPosts(r.data.posts || [])).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -391,6 +395,58 @@ export default function Dashboard() {
         </section>
       )}
 
+      {/* ── IMPACT STORIES (featured posts as story cards) ─────────── */}
+      {posts.filter(p => p.featured).length > 0 && (
+        <section style={{ animation: 'staggerIn 0.35s ease 0.28s both' }}>
+          <div className="flex items-center gap-1.5 mb-3">
+            <Sparkles size={14} className="text-orange-500" />
+            <h2 className="font-bold text-stone-900 text-sm">Impact Stories</h2>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+            {posts.filter(p => p.featured).map((post, i) => (
+              <button key={post._id} onClick={() => setActiveStory(post)}
+                className="shrink-0 w-[110px] h-[160px] rounded-2xl overflow-hidden relative active:scale-95 transition-all"
+                style={{ animation: 'staggerIn 0.3s ease both', animationDelay: `${i * 55}ms` }}>
+                {post.image ? (
+                  <img src={post.image} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center"
+                    style={{ background: `linear-gradient(145deg, ${['#f97316,#ea580c','#6366f1,#4f46e5','#10b981,#059669'][i % 3]})` }}>
+                    <span className="text-5xl opacity-90">{post.emoji}</span>
+                  </div>
+                )}
+                {/* Gradient overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent" />
+                {/* Story ring */}
+                <div className="absolute inset-0 rounded-2xl ring-2 ring-orange-400 ring-offset-1 ring-offset-transparent" />
+                {/* Text */}
+                <div className="absolute bottom-0 left-0 right-0 p-2.5">
+                  <p className="text-white text-[10px] font-bold leading-tight line-clamp-2">{post.title}</p>
+                  {post.stats?.route && (
+                    <p className="text-white/65 text-[9px] mt-1 truncate">{post.stats.route}</p>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── COMMUNITY POSTS FEED ────────────────────────────────────── */}
+      {posts.length > 0 && (
+        <section style={{ animation: 'staggerIn 0.35s ease 0.32s both' }}>
+          <div className="flex items-center gap-1.5 mb-3">
+            <span className="text-sm">🕊️</span>
+            <h2 className="font-bold text-stone-900 text-sm">From the Community</h2>
+          </div>
+          <div className="space-y-3">
+            {posts.map(post => (
+              <PostCard key={post._id} post={post} onOpen={setActiveStory} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* ── ANNOUNCEMENTS ───────────────────────────────────────────── */}
       {announcements.length > 0 && (
         <section style={{ animation: 'staggerIn 0.35s ease 0.3s both' }}>
@@ -418,6 +474,44 @@ export default function Dashboard() {
             ))}
           </div>
         </section>
+      )}
+
+      {/* ── Story full-screen overlay ── */}
+      {activeStory && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end animate-fade-in"
+          onClick={() => setActiveStory(null)}>
+          <div className="w-full max-w-lg mx-auto bg-white rounded-t-3xl overflow-hidden max-h-[90vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+            style={{ animation: 'slideUp 0.3s ease both' }}>
+            {activeStory.image && (
+              <div className="relative">
+                <img src={activeStory.image} alt="" className="w-full object-cover" style={{ maxHeight: 240 }} />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+              </div>
+            )}
+            {!activeStory.image && (
+              <div className="h-32 flex items-center justify-center"
+                style={{ background: 'linear-gradient(145deg, #f97316, #ea580c)' }}>
+                <span className="text-6xl">{activeStory.emoji}</span>
+              </div>
+            )}
+            <div className="px-5 py-5">
+              <h2 className="text-base font-black text-stone-900 leading-snug">{activeStory.title}</h2>
+              {activeStory.stats && (
+                <div className="flex gap-2 flex-wrap mt-2">
+                  {activeStory.stats.route && <span className="text-[10px] font-bold px-2.5 py-1 rounded-xl bg-orange-50 text-orange-600">📍 {activeStory.stats.route}</span>}
+                  {activeStory.stats.time  && <span className="text-[10px] font-bold px-2.5 py-1 rounded-xl bg-blue-50 text-blue-600">⏱ {activeStory.stats.time}</span>}
+                  {activeStory.stats.saved && <span className="text-[10px] font-bold px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-600">💰 {activeStory.stats.saved}</span>}
+                </div>
+              )}
+              <p className="text-sm text-stone-600 leading-relaxed mt-3">{activeStory.content}</p>
+              <button onClick={() => setActiveStory(null)}
+                className="w-full mt-5 py-3 rounded-2xl bg-stone-100 text-stone-600 text-sm font-bold active:scale-98 transition-all">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showTripModal && (
