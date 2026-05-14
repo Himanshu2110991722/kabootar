@@ -149,145 +149,146 @@ export default function Dashboard() {
   return (
     <div className="px-4 py-4 space-y-4 pb-8">
 
-      {/* ── HERO + SEARCH ─────────────────────────────────────────── */}
-      <div className="rounded-3xl overflow-hidden"
+      {/* ── HERO — greeting only (overflow-hidden safe here, no dropdowns) ── */}
+      <div className="rounded-t-3xl overflow-hidden"
         style={{ background: 'linear-gradient(150deg, #f97316 0%, #ea580c 55%, #c2410c 100%)' }}>
-        <div className="px-5 pt-5 pb-5 space-y-4">
-
-          {/* Greeting */}
-          <div style={{ animation: 'staggerIn 0.35s ease both' }}>
-            <p className="text-orange-100 text-xs font-semibold">
-              Good {getGreeting()} 👋
-              {user && (activeTripsCount > 0 || pendingParcelsCount > 0) && (
-                <span className="ml-1 opacity-80">
-                  · {activeTripsCount} trip{activeTripsCount !== 1 ? 's' : ''} · {pendingParcelsCount} parcel{pendingParcelsCount !== 1 ? 's' : ''}
-                </span>
-              )}
-            </p>
-            <h1 className="text-white text-[22px] font-black leading-tight mt-0.5">
-              {user ? `Hey, ${firstName}!` : 'Ship smarter with Kabutar'}
-            </h1>
-          </div>
-
-          {/* White search card */}
-          <div className="bg-white rounded-2xl p-3 space-y-2.5 shadow-lg shadow-orange-900/20"
-            style={{ animation: 'staggerIn 0.35s ease 0.07s both' }}>
-
-            {/* Toggle */}
-            <div className="flex bg-stone-100 rounded-xl p-0.5 gap-0.5">
-              {['trips', 'parcels'].map(t => (
-                <button key={t} onClick={() => setSearchType(t)}
-                  className={`flex-1 py-1.5 rounded-[10px] text-xs font-bold flex items-center justify-center gap-1 transition-all ${
-                    searchType === t
-                      ? 'bg-orange-500 text-white shadow-sm'
-                      : 'text-stone-500'
-                  }`}>
-                  {t === 'trips' ? '✈️ Travellers' : '📦 Parcels'}
-                </button>
-              ))}
-            </div>
-
-            {/* From → To row — grid prevents overflow */}
-            <div className="grid items-start gap-1.5" style={{ gridTemplateColumns: '1fr auto 1fr' }}>
-
-              {/* From */}
-              <div className="relative min-w-0">
-                <div className={`flex items-center gap-2 bg-stone-50 border rounded-xl px-3 py-2.5 transition-all ${showFrom ? 'border-orange-400 ring-2 ring-orange-100' : 'border-stone-200'}`}>
-                  <div className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
-                  <input
-                    ref={fromRef}
-                    className="min-w-0 w-full text-sm font-semibold text-stone-800 bg-transparent outline-none placeholder:text-stone-400 placeholder:font-normal"
-                    placeholder="From"
-                    value={heroSearch.from}
-                    onChange={e => onFromChange(e.target.value)}
-                    onFocus={() => { setFromSuggs(filterCities(heroSearch.from)); setShowFrom(true); }}
-                    onBlur={hideFrom}
-                    onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                    autoComplete="off"
-                  />
-                  {heroSearch.from && (
-                    <button onMouseDown={e => e.preventDefault()} onClick={() => { setHeroSearch(s => ({ ...s, from: '' })); setShowFrom(false); }} className="text-stone-300 hover:text-stone-500 shrink-0">
-                      <X size={11} />
-                    </button>
-                  )}
-                </div>
-                {/* Suggestions */}
-                {showFrom && fromSuggs.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-stone-200 rounded-2xl shadow-xl z-50 overflow-hidden"
-                    style={{ boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
-                    {fromSuggs.map(city => (
-                      <button key={city} onMouseDown={e => e.preventDefault()} onClick={() => pickFrom(city)}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-orange-50 active:bg-orange-100 transition-colors border-b border-stone-50 last:border-0">
-                        <MapPin size={12} className="text-orange-400 shrink-0" />
-                        <span className="text-sm text-stone-700 font-medium">{city}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Swap */}
-              <button onClick={swapCities}
-                className="w-8 h-8 mt-0.5 bg-stone-100 hover:bg-stone-200 rounded-xl flex items-center justify-center transition-all active:scale-90 shrink-0">
-                <ArrowLeftRight size={13} className="text-stone-500" />
-              </button>
-
-              {/* To */}
-              <div className="relative min-w-0">
-                <div className={`flex items-center gap-2 bg-stone-50 border rounded-xl px-3 py-2.5 transition-all ${showTo ? 'border-orange-400 ring-2 ring-orange-100' : 'border-stone-200'}`}>
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                  <input
-                    ref={toRef}
-                    className="min-w-0 w-full text-sm font-semibold text-stone-800 bg-transparent outline-none placeholder:text-stone-400 placeholder:font-normal"
-                    placeholder="To"
-                    value={heroSearch.to}
-                    onChange={e => onToChange(e.target.value)}
-                    onFocus={() => { setToSuggs(filterCities(heroSearch.to)); setShowTo(true); }}
-                    onBlur={hideTo}
-                    onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                    autoComplete="off"
-                  />
-                  {heroSearch.to && (
-                    <button onMouseDown={e => e.preventDefault()} onClick={() => { setHeroSearch(s => ({ ...s, to: '' })); setShowTo(false); }} className="text-stone-300 hover:text-stone-500 shrink-0">
-                      <X size={11} />
-                    </button>
-                  )}
-                </div>
-                {/* Suggestions */}
-                {showTo && toSuggs.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-stone-200 rounded-2xl shadow-xl z-50 overflow-hidden"
-                    style={{ boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
-                    {toSuggs.map(city => (
-                      <button key={city} onMouseDown={e => e.preventDefault()} onClick={() => pickTo(city)}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-orange-50 active:bg-orange-100 transition-colors border-b border-stone-50 last:border-0">
-                        <MapPin size={12} className="text-emerald-400 shrink-0" />
-                        <span className="text-sm text-stone-700 font-medium">{city}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Date — trips only, compact */}
-            {searchType === 'trips' && (
-              <div className="flex items-center gap-2 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-100 transition-all">
-                <Calendar size={13} className="text-stone-400 shrink-0" />
-                <input type="date" min={today}
-                  className="flex-1 text-sm text-stone-600 bg-transparent outline-none font-medium"
-                  value={heroSearch.date}
-                  onChange={e => setHeroSearch(s => ({ ...s, date: e.target.value }))} />
-              </div>
+        <div className="px-5 pt-5 pb-7" style={{ animation: 'staggerIn 0.35s ease both' }}>
+          <p className="text-orange-100 text-xs font-semibold">
+            Good {getGreeting()} 👋
+            {user && (activeTripsCount > 0 || pendingParcelsCount > 0) && (
+              <span className="ml-1 opacity-80">
+                · {activeTripsCount} trip{activeTripsCount !== 1 ? 's' : ''} · {pendingParcelsCount} parcel{pendingParcelsCount !== 1 ? 's' : ''}
+              </span>
             )}
+          </p>
+          <h1 className="text-white text-[22px] font-black leading-tight mt-0.5">
+            {user ? `Hey, ${firstName}!` : 'Ship smarter with Kabutar'}
+          </h1>
+        </div>
+      </div>
 
-            {/* Search CTA */}
-            <button onClick={handleSearch}
-              className="w-full bg-orange-500 hover:bg-orange-600 active:scale-[0.98] text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 transition-all"
-              style={{ boxShadow: '0 4px 16px rgba(249,115,22,0.35)' }}>
-              <Search size={15} />
-              {searchType === 'trips' ? 'Find Travellers' : 'Find Parcels'}
-            </button>
+      {/* ── SEARCH CARD — outside overflow-hidden so dropdowns render freely ── */}
+      {/* Negative margin pulls card up to visually overlap the hero bottom     */}
+      <div className="bg-white rounded-b-3xl rounded-t-2xl shadow-lg relative z-10"
+        style={{ marginTop: -12, animation: 'staggerIn 0.35s ease 0.07s both' }}>
+        <div className="p-3 space-y-2.5">
+
+          {/* Toggle */}
+          <div className="flex bg-stone-100 rounded-xl p-0.5 gap-0.5">
+            {['trips', 'parcels'].map(t => (
+              <button key={t} onClick={() => setSearchType(t)}
+                className={`flex-1 py-1.5 rounded-[10px] text-xs font-bold flex items-center justify-center gap-1 transition-all ${
+                  searchType === t ? 'bg-orange-500 text-white shadow-sm' : 'text-stone-500'
+                }`}>
+                {t === 'trips' ? '✈️ Travellers' : '📦 Parcels'}
+              </button>
+            ))}
           </div>
+
+          {/* From → To row */}
+          <div className="grid items-start gap-1.5" style={{ gridTemplateColumns: '1fr auto 1fr' }}>
+
+            {/* From */}
+            <div className="relative min-w-0">
+              <div className={`flex items-center gap-2 bg-stone-50 border rounded-xl px-3 py-2.5 transition-all ${showFrom ? 'border-orange-400 ring-2 ring-orange-100' : 'border-stone-200'}`}>
+                <div className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
+                <input
+                  ref={fromRef}
+                  className="min-w-0 w-full text-sm font-semibold text-stone-800 bg-transparent outline-none placeholder:text-stone-400 placeholder:font-normal"
+                  placeholder="From"
+                  value={heroSearch.from}
+                  onChange={e => onFromChange(e.target.value)}
+                  onFocus={() => { setFromSuggs(filterCities(heroSearch.from)); setShowFrom(true); }}
+                  onBlur={hideFrom}
+                  onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                  autoComplete="off"
+                />
+                {heroSearch.from && (
+                  <button onMouseDown={e => e.preventDefault()}
+                    onClick={() => { setHeroSearch(s => ({ ...s, from: '' })); setShowFrom(false); }}
+                    className="text-stone-300 hover:text-stone-500 shrink-0">
+                    <X size={11} />
+                  </button>
+                )}
+              </div>
+              {/* Suggestions — renders outside overflow-hidden, no clipping */}
+              {showFrom && fromSuggs.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-stone-200 rounded-2xl overflow-hidden"
+                  style={{ zIndex: 100, boxShadow: '0 8px 24px rgba(0,0,0,0.14)' }}>
+                  {fromSuggs.map(city => (
+                    <button key={city} onMouseDown={e => e.preventDefault()} onClick={() => pickFrom(city)}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-orange-50 active:bg-orange-100 transition-colors border-b border-stone-50 last:border-0">
+                      <MapPin size={12} className="text-orange-400 shrink-0" />
+                      <span className="text-sm text-stone-700 font-medium">{city}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Swap */}
+            <button onClick={swapCities}
+              className="w-8 h-8 mt-0.5 bg-stone-100 hover:bg-stone-200 rounded-xl flex items-center justify-center transition-all active:scale-90 shrink-0">
+              <ArrowLeftRight size={13} className="text-stone-500" />
+            </button>
+
+            {/* To */}
+            <div className="relative min-w-0">
+              <div className={`flex items-center gap-2 bg-stone-50 border rounded-xl px-3 py-2.5 transition-all ${showTo ? 'border-orange-400 ring-2 ring-orange-100' : 'border-stone-200'}`}>
+                <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                <input
+                  ref={toRef}
+                  className="min-w-0 w-full text-sm font-semibold text-stone-800 bg-transparent outline-none placeholder:text-stone-400 placeholder:font-normal"
+                  placeholder="To"
+                  value={heroSearch.to}
+                  onChange={e => onToChange(e.target.value)}
+                  onFocus={() => { setToSuggs(filterCities(heroSearch.to)); setShowTo(true); }}
+                  onBlur={hideTo}
+                  onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                  autoComplete="off"
+                />
+                {heroSearch.to && (
+                  <button onMouseDown={e => e.preventDefault()}
+                    onClick={() => { setHeroSearch(s => ({ ...s, to: '' })); setShowTo(false); }}
+                    className="text-stone-300 hover:text-stone-500 shrink-0">
+                    <X size={11} />
+                  </button>
+                )}
+              </div>
+              {/* Suggestions */}
+              {showTo && toSuggs.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-stone-200 rounded-2xl overflow-hidden"
+                  style={{ zIndex: 100, boxShadow: '0 8px 24px rgba(0,0,0,0.14)' }}>
+                  {toSuggs.map(city => (
+                    <button key={city} onMouseDown={e => e.preventDefault()} onClick={() => pickTo(city)}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-orange-50 active:bg-orange-100 transition-colors border-b border-stone-50 last:border-0">
+                      <MapPin size={12} className="text-emerald-400 shrink-0" />
+                      <span className="text-sm text-stone-700 font-medium">{city}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Date — trips only */}
+          {searchType === 'trips' && (
+            <div className="flex items-center gap-2 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-100 transition-all">
+              <Calendar size={13} className="text-stone-400 shrink-0" />
+              <input type="date" min={today}
+                className="flex-1 text-sm text-stone-600 bg-transparent outline-none font-medium"
+                value={heroSearch.date}
+                onChange={e => setHeroSearch(s => ({ ...s, date: e.target.value }))} />
+            </div>
+          )}
+
+          {/* Search CTA */}
+          <button onClick={handleSearch}
+            className="w-full bg-orange-500 hover:bg-orange-600 active:scale-[0.98] text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 transition-all"
+            style={{ boxShadow: '0 4px 16px rgba(249,115,22,0.35)' }}>
+            <Search size={15} />
+            {searchType === 'trips' ? 'Find Travellers' : 'Find Parcels'}
+          </button>
         </div>
       </div>
 

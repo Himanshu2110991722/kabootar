@@ -24,10 +24,9 @@ const config: CapacitorConfig = {
       providers: ['phone', 'google.com'],
     },
     SplashScreen: {
-      launchShowDuration: 2500,
+      launchShowDuration: 0,     // hide native splash instantly — React handles the full animation
       launchAutoHide: true,
       backgroundColor: '#f97316',
-      androidSplashResourceName: 'splash',
       showSpinner: false,
     },
     StatusBar: {
