@@ -40,7 +40,9 @@ const userSchema = new mongoose.Schema(
     kycRejectedReason: { type: String, default: '' },
     kycApprovedAt:     { type: Date },
     kycRejectedAt:     { type: Date },
-    fcmToken:          { type: String, default: '' }, // FCM push notification token
+    fcmToken:            { type: String, default: '' },
+    pendingDeletion:     { type: Boolean, default: false },
+    deletionRequestedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

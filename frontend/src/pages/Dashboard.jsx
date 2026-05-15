@@ -15,6 +15,21 @@ import PostCard from '../components/PostCard';
 
 const today = new Date().toISOString().split('T')[0];
 
+const HERO_PHRASES = [
+  'Ship smarter with Kabutar',
+  'Earn while you travel',
+  'Connect · Carry · Earn',
+  'Your trusted travel network',
+  'Same route, shared journey',
+];
+
+const LOGGED_IN_PHRASES = [
+  'Where are you headed today?',
+  'Ready for your next trip?',
+  'Find a traveller on your route',
+  'Deliver something special today',
+];
+
 function CountUp({ value }) {
   const [n, setN] = useState(0);
   const done = useRef(false);
@@ -66,6 +81,8 @@ export default function Dashboard() {
   const authGate  = useAuthGate();
 
   const [searchType,    setSearchType]    = useState('trips');
+  const [phraseIdx,     setPhraseIdx]     = useState(0);
+  const [phraseVisible, setPhraseVisible] = useState(true);
   const [heroSearch,    setHeroSearch]    = useState({ from: '', to: '', date: '' });
   const [fromSuggs,     setFromSuggs]     = useState([]);
   const [toSuggs,       setToSuggs]       = useState([]);
@@ -83,6 +100,19 @@ export default function Dashboard() {
   const [myParcels,     setMyParcels]     = useState([]);
   const [showTripModal,   setShowTripModal]   = useState(false);
   const [showParcelModal, setShowParcelModal] = useState(false);
+
+  // Cycle through hero phrases
+  useEffect(() => {
+    const phrases = user ? LOGGED_IN_PHRASES : HERO_PHRASES;
+    const iv = setInterval(() => {
+      setPhraseVisible(false);
+      setTimeout(() => {
+        setPhraseIdx(i => (i + 1) % phrases.length);
+        setPhraseVisible(true);
+      }, 350);
+    }, 3000);
+    return () => clearInterval(iv);
+  }, [user]);
 
   useEffect(() => {
     api.get('/trips/stats').then(r => setStats(r.data)).catch(() => {});
@@ -161,9 +191,31 @@ export default function Dashboard() {
               </span>
             )}
           </p>
-          <h1 className="text-white text-[22px] font-black leading-tight mt-0.5">
-            {user ? `Hey, ${firstName}!` : 'Ship smarter with Kabutar'}
-          </h1>
+          {user ? (
+            <>
+              <h1 className="text-white text-[22px] font-black leading-tight mt-0.5">
+                Hey, {firstName}!
+              </h1>
+              <p style={{
+                opacity: phraseVisible ? 1 : 0,
+                transform: phraseVisible ? 'translateY(0)' : 'translateY(6px)',
+                transition: 'opacity 0.35s ease, transform 0.35s ease',
+                color: 'rgba(255,237,213,0.85)',
+                fontSize: 12, marginTop: 2, fontWeight: 500,
+              }}>
+                {LOGGED_IN_PHRASES[phraseIdx % LOGGED_IN_PHRASES.length]}
+              </p>
+            </>
+          ) : (
+            <h1 className="text-white text-[22px] font-black leading-tight mt-0.5"
+              style={{
+                opacity: phraseVisible ? 1 : 0,
+                transform: phraseVisible ? 'translateY(0)' : 'translateY(8px)',
+                transition: 'opacity 0.35s ease, transform 0.35s ease',
+              }}>
+              {HERO_PHRASES[phraseIdx % HERO_PHRASES.length]}
+            </h1>
+          )}
         </div>
       </div>
 

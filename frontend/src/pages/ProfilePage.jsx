@@ -12,6 +12,7 @@ import {
   Plane, Bus, Car, ChevronDown, ChevronUp, Plus,
 } from 'lucide-react';
 import KYCUploadModal from '../components/KYCUploadModal';
+import LegalModal from '../components/LegalModal';
 import PhoneVerifyModal from '../components/PhoneVerifyModal';
 import PostTripModal from '../components/PostTripModal';
 import PostParcelModal from '../components/PostParcelModal';
@@ -32,6 +33,8 @@ const calcCompletion = (user) => {
 
 export default function ProfilePage() {
   const { user, logout, setUser, refreshUser } = useAuth();
+  const [legalModal,      setLegalModal]      = useState(null); // 'terms' | 'privacy'
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const navigate  = useNavigate();
   const photoRef  = useRef(null);
 
@@ -555,14 +558,82 @@ export default function ProfilePage() {
           onClick={() => navigate('/kyc')} />
       </div>
 
-      {/* ── Logout ────────────────────────────────────────────── */}
-      <div className="mx-4">
+      {/* ── Help & Support ────────────────────────────────────── */}
+      <div className="mx-4 card divide-y divide-stone-100 mb-4 overflow-hidden">
+        <MenuItem
+          icon={<span className="text-base">💬</span>}
+          label="Help & Support"
+          sub="Email us at kabutar.support@gmail.com"
+          onClick={() => window.open('mailto:kabutar.support@gmail.com?subject=Kabutar Support', '_blank')}
+        />
+        <MenuItem
+          icon={<span className="text-base">📄</span>}
+          label="Terms of Service"
+          sub="Our terms and conditions"
+          onClick={() => setLegalModal('terms')}
+        />
+        <MenuItem
+          icon={<span className="text-base">🔒</span>}
+          label="Privacy Policy"
+          sub="How we handle your data"
+          onClick={() => setLegalModal('privacy')}
+        />
+      </div>
+
+      {/* ── Logout + Delete ───────────────────────────────────── */}
+      <div className="mx-4 space-y-3">
         <button onClick={handleLogout}
           className="w-full py-3.5 rounded-2xl border border-red-200 bg-red-50 text-red-500 font-semibold text-sm flex items-center justify-center gap-2 hover:bg-red-100 transition-colors active:scale-95">
           <LogOut size={16} /> Sign out
         </button>
-        <p className="text-center text-[11px] text-stone-400 mt-4">🕊️ Kabutar v1.0.0 · Made with ♥ in India</p>
+        <button onClick={() => setShowDeleteModal(true)}
+          className="w-full py-3 rounded-2xl text-stone-400 text-xs font-medium flex items-center justify-center gap-1.5 hover:text-red-400 transition-colors active:scale-95">
+          <Trash2 size={13} /> Delete account
+        </button>
+        <p className="text-center text-[11px] text-stone-400 mt-2">🕊️ Kabutar v1.0.0 · Made with ♥ in India</p>
       </div>
+
+      {/* Legal modals */}
+      {legalModal && <LegalModal type={legalModal} onClose={() => setLegalModal(null)} />}
+
+      {/* Delete account confirmation */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/50 backdrop-blur-sm animate-fade-in"
+          onClick={() => setShowDeleteModal(false)}>
+          <div className="w-full max-w-lg mx-auto bg-white rounded-t-3xl px-5 py-6 space-y-4 animate-slide-up"
+            onClick={e => e.stopPropagation()}>
+            <div className="text-center">
+              <div className="text-4xl mb-3">⚠️</div>
+              <h3 className="font-black text-stone-900 text-lg">Delete your account?</h3>
+              <p className="text-stone-500 text-sm mt-2 leading-relaxed">
+                Your account will be scheduled for deletion. If you don't log in within <strong>3 days</strong>, your account and all data will be permanently deleted.
+              </p>
+              <p className="text-stone-400 text-xs mt-2">
+                Log in again within 3 days to cancel deletion.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <button onClick={async () => {
+                try {
+                  await api.post('/auth/me/request-delete');
+                  toast.success('Account scheduled for deletion in 3 days');
+                  setShowDeleteModal(false);
+                  await logout();
+                } catch (err) {
+                  toast.error(err.response?.data?.message || 'Failed to request deletion');
+                }
+              }}
+                className="w-full py-3.5 rounded-2xl bg-red-500 text-white font-bold text-sm active:scale-95 transition-all">
+                Yes, delete my account
+              </button>
+              <button onClick={() => setShowDeleteModal(false)}
+                className="w-full py-3.5 rounded-2xl bg-stone-100 text-stone-700 font-semibold text-sm active:scale-95 transition-all">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Trip edit / create modal */}
       {editingTrip && (

@@ -273,5 +273,18 @@ router.post('/me/image', protect, upload.single('image'), async (req, res) => {
   }
 });
 
+// POST /api/auth/me/request-delete — schedule account for deletion in 3 days
+router.post('/me/request-delete', protect, async (req, res) => {
+  try {
+    await User.findByIdAndUpdate(req.user._id, {
+      pendingDeletion: true,
+      deletionRequestedAt: new Date(),
+    });
+    res.json({ ok: true, message: 'Account scheduled for deletion in 3 days' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;
 

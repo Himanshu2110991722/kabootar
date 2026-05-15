@@ -13,6 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Phone, ArrowRight, ChevronLeft, Shield, RotateCcw } from 'lucide-react';
+import LegalModal from '../components/LegalModal';
 
 const isNativeApp = Capacitor.isNativePlatform();
 const STEPS = { HOME: 'home', PHONE: 'phone', OTP: 'otp', NAME: 'name' };
@@ -20,6 +21,7 @@ const RESEND_SECS = 30;
 
 export default function LoginPage() {
   const [step, setStep]             = useState(STEPS.HOME);
+  const [legalModal, setLegalModal] = useState(null); // 'terms' | 'privacy' | null
   const [phone, setPhone]           = useState('');
   const [otp, setOtp]               = useState(['', '', '', '', '', '']);
   const [name, setName]             = useState('');
@@ -281,12 +283,11 @@ export default function LoginPage() {
           </button>
           <p className="text-center text-white/50 text-[11px] mt-5">
             By continuing, you agree to our{' '}
-            <button onClick={() => window.open('https://kabutar.in/terms', '_blank')}
-              className="underline text-white/70">Terms</button>
+            <button onClick={() => setLegalModal('terms')} className="underline text-white/70">Terms</button>
             {' '}&amp;{' '}
-            <button onClick={() => window.open('https://kabutar.in/privacy-policy', '_blank')}
-              className="underline text-white/70">Privacy Policy</button>
+            <button onClick={() => setLegalModal('privacy')} className="underline text-white/70">Privacy Policy</button>
           </p>
+          {legalModal && <LegalModal type={legalModal} onClose={() => setLegalModal(null)} />}
         </div>
       </div>
     );

@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "705500228139-f0v9nouhp382ntjtr6s0vanpfo0gojf4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "in.kabutar.app",
+            "certificate_hash": "183622dbe706550e929bd05d23e9e5a03699fc58"
+          }
+        },
+        {
           "client_id": "705500228139-v0dod4jd8b2jtf95jh2hbbs2ei6uvhsl.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
