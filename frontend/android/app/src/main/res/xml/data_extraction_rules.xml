@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ backup rules. Excludes auth tokens and sensitive prefs from
+  cloud backup, while allowing non-sensitive app data to be backed up.
+  Required by Play Store Data Safety section guidance.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- Exclude auth tokens — never back up credentials -->
+        <exclude domain="sharedpref" path="kabootar_token" />
+        <exclude domain="sharedpref" path="kabootar_user" />
+        <exclude domain="sharedpref" path="CapacitorStorage" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="kabootar_token" />
+        <exclude domain="sharedpref" path="kabootar_user" />
+    </device-transfer>
+</data-extraction-rules>

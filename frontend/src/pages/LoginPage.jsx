@@ -280,7 +280,12 @@ export default function LoginPage() {
             <Phone size={17} /> Continue with Phone
           </button>
           <p className="text-center text-white/50 text-[11px] mt-5">
-            By continuing, you agree to our Terms &amp; Privacy Policy
+            By continuing, you agree to our{' '}
+            <button onClick={() => window.open('https://kabutar.in/terms', '_blank')}
+              className="underline text-white/70">Terms</button>
+            {' '}&amp;{' '}
+            <button onClick={() => window.open('https://kabutar.in/privacy-policy', '_blank')}
+              className="underline text-white/70">Privacy Policy</button>
           </p>
         </div>
       </div>

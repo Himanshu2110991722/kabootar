@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Enforces HTTPS-only traffic. Clears Android's default allowance for
+  cleartext (HTTP) in release builds, satisfying Play Store security requirements.
+  The WebView connects only to https://app.kabutar.in and https://kabootar-1.onrender.com
+  both of which are HTTPS — so this is safe.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Allow localhost cleartext for Capacitor's local dev server only -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+    </domain-config>
+</network-security-config>
