@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
-import { Shield, CheckCircle, XCircle, Users, ChevronLeft, Search, ExternalLink, Clock, Megaphone, Plus, Trash2, Pin, BookOpen, Star, Sparkles } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, Users, ChevronLeft, Search, ExternalLink, Clock, Megaphone, Plus, Trash2, Pin, BookOpen, Star, Sparkles, Flag } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 
 // ── Admin guard ───────────────────────────────────────────────────────────────
@@ -101,6 +101,10 @@ function AdminDashboard() {
           className={`flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1 ${tab === 'announcements' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
           <Megaphone size={12} /> Alerts
         </button>
+        <button onClick={() => setTab('reports')}
+          className={`flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1 ${tab === 'reports' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
+          <Flag size={12} /> Reports
+        </button>
         <button onClick={() => setTab('users')}
           className={`flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1 ${tab === 'users' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
           <Users size={12} /> Users
@@ -111,6 +115,7 @@ function AdminDashboard() {
         {tab === 'kyc'           && <KycQueue />}
         {tab === 'posts'         && <PostsManager />}
         {tab === 'announcements' && <AnnouncementsManager />}
+        {tab === 'reports'       && <ReportsQueue />}
         {tab === 'users'         && <UserList />}
       </div>
     </div>
@@ -425,6 +430,97 @@ function PostsManager() {
                     <Trash2 size={11} />
                   </button>
                 </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Reports Queue ─────────────────────────────────────────────────────────────
+const REASON_LABEL = {
+  spam: 'Spam', harassment: 'Harassment', fake_account: 'Fake Account',
+  fraud: 'Fraud', inappropriate_content: 'Inappropriate', other: 'Other',
+};
+const STATUS_COLOR = {
+  pending: 'bg-amber-100 text-amber-700',
+  reviewed: 'bg-blue-100 text-blue-700',
+  resolved: 'bg-emerald-100 text-emerald-700',
+};
+
+function ReportsQueue() {
+  const [reports,  setReports]  = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [filter,   setFilter]   = useState('pending');
+
+  const load = async () => {
+    setLoading(true);
+    const r = await api.get(`/admin/reports?status=${filter}`).catch(() => ({ data: { reports: [] } }));
+    setReports(r.data.reports || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, [filter]);
+
+  const updateStatus = async (id, status) => {
+    await api.patch(`/admin/reports/${id}`, { status }).catch(() => {});
+    setReports(prev => prev.map(r => r._id === id ? { ...r, status } : r));
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-1.5">
+        {['pending', 'reviewed', 'resolved', 'all'].map(s => (
+          <button key={s} onClick={() => setFilter(s)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-all ${filter === s ? 'bg-orange-500 text-white' : 'bg-stone-100 text-stone-500'}`}>
+            {s}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="text-center text-stone-400 text-sm py-8">Loading…</div>
+      ) : reports.length === 0 ? (
+        <div className="text-center text-stone-400 text-sm py-8 bg-white rounded-2xl border border-stone-100">
+          No {filter} reports
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {reports.map(r => (
+            <div key={r._id} className="bg-white border border-stone-200 rounded-2xl p-4 space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-black text-stone-800">
+                      {r.reporter?.name} → {r.reportedUser?.name}
+                    </span>
+                    <span className="text-[10px] font-bold bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full">
+                      {REASON_LABEL[r.reason] || r.reason}
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_COLOR[r.status]}`}>
+                      {r.status}
+                    </span>
+                  </div>
+                  {r.description && (
+                    <p className="text-xs text-stone-500 mt-1 leading-relaxed">{r.description}</p>
+                  )}
+                  <p className="text-[10px] text-stone-400 mt-1">{format(new Date(r.createdAt), 'dd MMM yyyy · h:mm a')}</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {r.status !== 'reviewed' && (
+                  <button onClick={() => updateStatus(r._id, 'reviewed')}
+                    className="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-blue-100 text-blue-700">
+                    Mark Reviewed
+                  </button>
+                )}
+                {r.status !== 'resolved' && (
+                  <button onClick={() => updateStatus(r._id, 'resolved')}
+                    className="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-700">
+                    Resolve
+                  </button>
+                )}
               </div>
             </div>
           ))}

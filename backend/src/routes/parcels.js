@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const Parcel = require('../models/Parcel');
-const { protect } = require('../middleware/auth');
+const { protect, optionalAuth } = require('../middleware/auth');
 const { upload, getFileUrl } = require('../utils/upload');
 const { notify } = require('../utils/notifications');
 
 // GET /api/parcels — search open parcels (requires from or to; returns empty otherwise)
-router.get('/', async (req, res) => {
+router.get('/', optionalAuth, async (req, res) => {
   try {
     const { from, to, status } = req.query;
 
@@ -16,6 +16,11 @@ router.get('/', async (req, res) => {
     const filter = {};
     if (status) filter.status = status;
     else filter.status = 'open';
+
+    // Hide parcels from blocked users
+    if (req.user?.blockedUsers?.length) {
+      filter.userId = { $nin: req.user.blockedUsers };
+    }
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);

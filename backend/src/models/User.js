@@ -41,6 +41,7 @@ const userSchema = new mongoose.Schema(
     kycApprovedAt:     { type: Date },
     kycRejectedAt:     { type: Date },
     fcmToken:            { type: String, default: '' },
+    blockedUsers:        [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     pendingDeletion:     { type: Boolean, default: false },
     deletionRequestedAt: { type: Date, default: null },
   },

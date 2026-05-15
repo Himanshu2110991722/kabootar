@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Trip = require('../models/Trip');
 const User = require('../models/User');
-const { protect } = require('../middleware/auth');
+const { protect, optionalAuth } = require('../middleware/auth');
 const { sendToTopic, cityTopic, routeTopic } = require('../utils/notifications');
 
 // GET /api/trips/stats — live counts for the home hero
@@ -38,7 +38,7 @@ router.get('/trending', async (req, res) => {
 });
 
 // GET /api/trips — search active trips (requires from or to param; returns empty otherwise)
-router.get('/', async (req, res) => {
+router.get('/', optionalAuth, async (req, res) => {
   try {
     const { from, to, date } = req.query;
 
@@ -47,6 +47,11 @@ router.get('/', async (req, res) => {
 
     const filter = { status: 'active' };
     const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+
+    // Hide trips from users this viewer has blocked (and vice-versa)
+    if (req.user?.blockedUsers?.length) {
+      filter.userId = { $nin: req.user.blockedUsers };
+    }
 
     if (from) filter.fromCity = { $regex: new RegExp(from, 'i') };
     if (to)   filter.toCity   = { $regex: new RegExp(to,   'i') };

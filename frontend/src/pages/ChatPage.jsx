@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import { getSocket, getRoomId } from '../lib/socket';
-import { ChevronLeft, Send, Star, IndianRupee, Check, X, ImageIcon } from 'lucide-react';
+import { ChevronLeft, Send, Star, IndianRupee, Check, X, ImageIcon, MoreVertical } from 'lucide-react';
+import ReportBlockSheet from '../components/ReportBlockSheet';
 import { format } from 'date-fns';
 import RatingModal from '../components/RatingModal';
 import KabutarLoader from '../components/KabutarLoader';
@@ -30,6 +31,7 @@ export default function ChatPage() {
   const [text,           setText]           = useState('');
   const [loading,        setLoading]        = useState(true);
   const [showRating,     setShowRating]     = useState(false);
+  const [showSafetyMenu, setShowSafetyMenu] = useState(false);
   const [showOfferPanel, setShowOfferPanel] = useState(false);
   const [offerAmount,    setOfferAmount]    = useState('');
   const [sendingOffer,   setSendingOffer]   = useState(false);
@@ -220,6 +222,9 @@ export default function ChatPage() {
         </div>
 
         <button onClick={() => setShowRating(true)} className="btn-ghost text-xs text-stone-500 shrink-0">Rate</button>
+        <button onClick={() => setShowSafetyMenu(true)} className="btn-ghost p-1.5 shrink-0">
+          <MoreVertical size={18} className="text-stone-400" />
+        </button>
       </div>
 
       {/* ── Messages — scrollable middle section ── */}
@@ -372,6 +377,15 @@ export default function ChatPage() {
       </div>
 
       {showRating && <RatingModal partner={partner} onClose={() => setShowRating(false)} />}
+      {showSafetyMenu && (
+        <ReportBlockSheet
+          userId={userId}
+          userName={partner?.name?.split(' ')[0] || 'this user'}
+          isBlocked={false}
+          onBlock={() => {}}
+          onClose={() => setShowSafetyMenu(false)}
+        />
+      )}
     </div>
   );
 }

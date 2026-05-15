@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { auth } from '../lib/firebase';
 import api from '../lib/api';
-import { connectSocket, disconnectSocket } from '../lib/socket';
+import { connectSocket, disconnectSocket, getSocket } from '../lib/socket';
 import { initPushNotifications } from '../lib/pushNotifications';
 
 const AuthContext = createContext(null);
@@ -89,6 +89,44 @@ export const AuthProvider = ({ children }) => {
   // Connect socket on mount if user exists
   useEffect(() => {
     if (user?._id) connectSocket(user._id);
+  }, [user?._id]);
+
+  // Listen for real-time KYC status updates from admin
+  useEffect(() => {
+    if (!user?._id) return;
+    const socket = getSocket();
+
+    const onApproved = (data) => {
+      // Update stored user with verified status immediately — no re-login needed
+      setUser(prev => {
+        if (!prev) return prev;
+        const updated = { ...prev, kycStatus: 'verified', kycApprovedAt: data.kycApprovedAt };
+        localStorage.setItem('kabootar_user', JSON.stringify(updated));
+        return updated;
+      });
+      import('react-hot-toast').then(({ default: toast }) => {
+        toast.success('🎉 KYC Verified! You can now post trips.', { duration: 6000 });
+      });
+    };
+
+    const onRejected = (data) => {
+      setUser(prev => {
+        if (!prev) return prev;
+        const updated = { ...prev, kycStatus: 'rejected', kycRejectedReason: data.kycRejectedReason };
+        localStorage.setItem('kabootar_user', JSON.stringify(updated));
+        return updated;
+      });
+      import('react-hot-toast').then(({ default: toast }) => {
+        toast.error(`KYC not approved: ${data.kycRejectedReason || 'Please re-upload documents.'}`, { duration: 7000 });
+      });
+    };
+
+    socket.on('kyc_approved', onApproved);
+    socket.on('kyc_rejected', onRejected);
+    return () => {
+      socket.off('kyc_approved', onApproved);
+      socket.off('kyc_rejected', onRejected);
+    };
   }, [user?._id]);
 
   return (

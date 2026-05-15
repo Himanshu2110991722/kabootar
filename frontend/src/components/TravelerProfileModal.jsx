@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
-import { X, Star, MessageCircle, Package, CheckCircle, Shield, Clock } from 'lucide-react';
+import { X, Star, MessageCircle, Package, CheckCircle, Shield, Clock, MoreVertical } from 'lucide-react';
 import { format } from 'date-fns';
+import ReportBlockSheet from './ReportBlockSheet';
+import { useAuth } from '../context/AuthContext';
 
 const KYC_BADGE = {
   verified: { label: 'KYC Verified', cls: 'bg-emerald-50 text-emerald-600', icon: <CheckCircle size={11} /> },
@@ -12,8 +14,11 @@ const KYC_BADGE = {
 };
 
 export default function TravelerProfileModal({ travelerId, travelerSnap, onClose, onChat }) {
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [profile,    setProfile]    = useState(null);
+  const [loading,    setLoading]    = useState(true);
+  const [showSheet,  setShowSheet]  = useState(false);
+  const [isBlocked,  setIsBlocked]  = useState(false);
+  const { user: me } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -34,12 +39,21 @@ export default function TravelerProfileModal({ travelerId, travelerSnap, onClose
   };
 
   return (
+    <>
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal-content">
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-stone-100">
           <h2 className="font-bold text-stone-900">Traveler Profile</h2>
-          <button onClick={onClose} className="btn-ghost p-1.5 -mr-1.5"><X size={18} /></button>
+          <div className="flex items-center gap-1">
+            {me && me._id !== travelerId && (
+              <button onClick={() => setShowSheet(true)}
+                className="btn-ghost p-1.5">
+                <MoreVertical size={18} className="text-stone-500" />
+              </button>
+            )}
+            <button onClick={onClose} className="btn-ghost p-1.5 -mr-1.5"><X size={18} /></button>
+          </div>
         </div>
 
         <div className="px-5 py-5 space-y-5">
@@ -120,6 +134,17 @@ export default function TravelerProfileModal({ travelerId, travelerSnap, onClose
         </div>
       </div>
     </div>
+
+    {showSheet && (
+      <ReportBlockSheet
+        userId={travelerId}
+        userName={data?.name?.split(' ')[0] || 'this user'}
+        isBlocked={isBlocked}
+        onBlock={setIsBlocked}
+        onClose={() => setShowSheet(false)}
+      />
+    )}
+    </>
   );
 }
 

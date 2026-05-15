@@ -39,6 +39,8 @@ const announcementRoutes  = require('./routes/announcements');
 const appNotifRoutes      = require('./routes/appNotifications');
 const exploreRoutes       = require('./routes/explore');
 const postRoutes          = require('./routes/posts');
+// Ensure Report model is registered for admin queries
+require('./models/Report');
 
 const app = express();
 const httpServer = createServer(app);

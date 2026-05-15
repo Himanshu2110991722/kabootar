@@ -32,4 +32,17 @@ const protect = async (req, res, next) => {
   }
 };
 
-module.exports = { protect };
+// Optional auth — sets req.user if valid token present, never fails
+const optionalAuth = async (req, _res, next) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    try {
+      const decoded = jwt.verify(authHeader.split(' ')[1], process.env.JWT_SECRET);
+      const user = await User.findById(decoded.id).select('blockedUsers');
+      if (user) req.user = user;
+    } catch {}
+  }
+  next();
+};
+
+module.exports = { protect, optionalAuth };

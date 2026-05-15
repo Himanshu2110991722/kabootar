@@ -27,12 +27,26 @@ export default function Layout() {
     return () => socket.off('receive_message', load);
   }, [user]);
 
-  // Unread notification count
+  // Unread notification count + new announcement badge
   useEffect(() => {
-    if (!user) { setNotifUnread(0); return; }
-    api.get('/notifications/me')
-      .then(r => setNotifUnread(r.data.unread || 0))
-      .catch(() => {});
+    const lastSeen = parseInt(localStorage.getItem('kabutar_alerts_seen') || '0', 10);
+
+    const loadCounts = async () => {
+      let total = 0;
+      if (user) {
+        const nr = await api.get('/notifications/me').catch(() => ({ data: { unread: 0 } }));
+        total += nr.data.unread || 0;
+      }
+      // Count announcements newer than last time user visited Alerts tab
+      const ar = await api.get('/announcements').catch(() => ({ data: { announcements: [] } }));
+      const newAnnouncements = (ar.data.announcements || []).filter(
+        a => new Date(a.createdAt).getTime() > lastSeen
+      ).length;
+      total += newAnnouncements;
+      setNotifUnread(total);
+    };
+
+    loadCounts();
   }, [user]);
 
   const isChat  = location.pathname === '/messages' || location.pathname.startsWith('/chat');
@@ -121,7 +135,11 @@ export default function Layout() {
 
           {/* Notifications */}
           <button
-            onClick={() => authGate(() => { setNotifUnread(0); navigate('/notifications'); })}
+            onClick={() => {
+            localStorage.setItem('kabutar_alerts_seen', Date.now().toString());
+            setNotifUnread(0);
+            navigate('/notifications');
+          }}
             className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all ${isNotif ? 'text-orange-500' : 'text-stone-400'}`}>
             <div className="relative">
               <Bell size={20} strokeWidth={1.8} />

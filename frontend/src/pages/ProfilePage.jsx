@@ -558,6 +558,9 @@ export default function ProfilePage() {
           onClick={() => navigate('/kyc')} />
       </div>
 
+      {/* ── Blocked users ────────────────────────────────────── */}
+      <BlockedUsersList />
+
       {/* ── Help & Support ────────────────────────────────────── */}
       <div className="mx-4 card divide-y divide-stone-100 mb-4 overflow-hidden">
         <MenuItem
@@ -694,6 +697,60 @@ function InfoRow({ icon, label, value }) {
         <p className="text-[10px] text-stone-400 uppercase tracking-wide mb-0.5">{label}</p>
         <p className="text-sm text-stone-800 font-medium">{value || '—'}</p>
       </div>
+    </div>
+  );
+}
+
+function BlockedUsersList() {
+  const [blocked, setBlocked] = useState([]);
+  const [show,    setShow]    = useState(false);
+
+  useEffect(() => {
+    if (!show) return;
+    api.get('/users/blocked/list')
+      .then(r => setBlocked(r.data.blocked || []))
+      .catch(() => {});
+  }, [show]);
+
+  const unblock = async (id, name) => {
+    await api.delete(`/users/${id}/block`).catch(() => {});
+    setBlocked(prev => prev.filter(u => u._id !== id));
+    toast.success(`${name} unblocked`);
+  };
+
+  if (!show) {
+    return (
+      <div className="mx-4 mb-2">
+        <button onClick={() => setShow(true)}
+          className="w-full text-left text-xs text-stone-400 font-semibold px-2 py-2 hover:text-stone-600 transition-colors flex items-center gap-1.5">
+          🚫 Manage blocked users
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-4 card overflow-hidden mb-4">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-stone-50">
+        <span className="text-sm font-bold text-stone-900">Blocked Users</span>
+        <button onClick={() => setShow(false)} className="text-xs text-stone-400">Hide</button>
+      </div>
+      {blocked.length === 0 ? (
+        <p className="text-xs text-stone-400 text-center py-4">No blocked users</p>
+      ) : blocked.map(u => (
+        <div key={u._id} className="flex items-center gap-3 px-4 py-3 border-b border-stone-50 last:border-0">
+          <div className="w-8 h-8 rounded-full bg-stone-100 overflow-hidden flex items-center justify-center shrink-0">
+            {u.profileImage
+              ? <img src={u.profileImage} className="w-full h-full object-cover" alt="" />
+              : <span className="text-stone-500 text-xs font-bold">{u.name?.[0]?.toUpperCase()}</span>}
+          </div>
+          <span className="flex-1 text-sm font-medium text-stone-700">{u.name}</span>
+          <button onClick={() => unblock(u._id, u.name)}
+            className="text-xs font-bold text-orange-500 bg-orange-50 px-3 py-1.5 rounded-xl active:scale-95 transition-all">
+            Unblock
+          </button>
+        </div>
+      ))}
     </div>
   );
 }
