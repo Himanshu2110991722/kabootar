@@ -19,6 +19,7 @@ import CompleteProfilePage from './pages/CompleteProfilePage';
 import AdminPage from './pages/AdminPage';
 import ExplorePage from './pages/ExplorePage';
 import NotificationsPage from './pages/NotificationsPage';
+import DeleteAccountPage from './pages/DeleteAccountPage';
 
 const PrivateRoute = ({ children }) => {
   const { user } = useAuth();
@@ -85,6 +86,7 @@ function AppRoutes() {
           <Route path="/kyc" element={<PrivateRoute><KYCPage /></PrivateRoute>} />
         </Route>
         <Route path="/complete-profile" element={<CompleteProfilePage />} />
+        <Route path="/delete-account" element={<DeleteAccountPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

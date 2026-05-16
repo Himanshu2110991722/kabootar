@@ -34,7 +34,8 @@ const calcCompletion = (user) => {
 export default function ProfilePage() {
   const { user, logout, setUser, refreshUser } = useAuth();
   const [legalModal,      setLegalModal]      = useState(null); // 'terms' | 'privacy'
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDeleteModal,  setShowDeleteModal]  = useState(false);
+  const [deletingAccount,  setDeletingAccount]  = useState(false);
   const navigate  = useNavigate();
   const photoRef  = useRef(null);
 
@@ -616,18 +617,31 @@ export default function ProfilePage() {
               </p>
             </div>
             <div className="space-y-2">
-              <button onClick={async () => {
-                try {
-                  await api.post('/auth/me/request-delete');
-                  toast.success('Account scheduled for deletion in 3 days');
-                  setShowDeleteModal(false);
-                  await logout();
-                } catch (err) {
-                  toast.error(err.response?.data?.message || 'Failed to request deletion');
-                }
-              }}
-                className="w-full py-3.5 rounded-2xl bg-red-500 text-white font-bold text-sm active:scale-95 transition-all">
-                Yes, delete my account
+              <button
+                disabled={deletingAccount}
+                onClick={async () => {
+                  setDeletingAccount(true);
+                  try {
+                    await api.post('/auth/me/request-delete');
+                    toast.success('Account scheduled for deletion in 3 days');
+                    setShowDeleteModal(false);
+                    await logout();
+                  } catch (err) {
+                    toast.error(err.response?.data?.message || 'Failed — please try again');
+                  } finally {
+                    setDeletingAccount(false);
+                  }
+                }}
+                className="w-full py-3.5 rounded-2xl bg-red-500 text-white font-bold text-sm active:scale-95 transition-all disabled:opacity-60 flex items-center justify-center gap-2">
+                {deletingAccount ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    Deleting…
+                  </>
+                ) : 'Yes, delete my account'}
               </button>
               <button onClick={() => setShowDeleteModal(false)}
                 className="w-full py-3.5 rounded-2xl bg-stone-100 text-stone-700 font-semibold text-sm active:scale-95 transition-all">
