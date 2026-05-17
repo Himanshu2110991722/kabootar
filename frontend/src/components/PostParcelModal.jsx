@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
-import { X, Package, AlertTriangle, Edit2 } from 'lucide-react';
+import { X, Package, AlertTriangle, Edit2, Scale } from 'lucide-react';
 import CityInput from './CityInput';
 import StationSelect from './StationSelect';
+import WeightCalculator from './WeightCalculator';
 
 const ITEM_TYPES = ['documents', 'electronics', 'clothes', 'others'];
 const ITEM_EMOJI = { documents: '📄', electronics: '📱', clothes: '👕', others: '📦' };
@@ -29,9 +30,10 @@ export default function PostParcelModal({ onClose, onSuccess, initialData = null
     itemType:    initialData?.itemType    || 'documents',
     description: initialData?.description || '',
   });
-  const [errors,  setErrors]  = useState({});
-  const [loading, setLoading] = useState(false);
-  const [agreed,  setAgreed]  = useState(isEdit); // skip checkbox in edit mode
+  const [errors,   setErrors]   = useState({});
+  const [loading,  setLoading]  = useState(false);
+  const [agreed,   setAgreed]   = useState(isEdit);
+  const [showCalc, setShowCalc] = useState(false); // skip checkbox in edit mode
 
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: undefined })); };
 
@@ -113,9 +115,29 @@ export default function PostParcelModal({ onClose, onSuccess, initialData = null
           </Field>
 
           <Field label="Approx. Weight (kg)" error={errors.weight}>
-            <input className="input-field" placeholder="2.5" type="number" min="0.1" step="0.1"
-              value={form.weight} onChange={e => set('weight', e.target.value)} />
+            <div className="space-y-1.5">
+              <div className="flex gap-2">
+                <input className="input-field flex-1" placeholder="e.g. 2.5" type="number" min="0.1" step="0.1"
+                  value={form.weight} onChange={e => set('weight', e.target.value)} />
+                <button type="button" onClick={() => setShowCalc(true)}
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-2.5 bg-orange-50 border border-orange-200 text-orange-600 rounded-xl text-xs font-bold active:scale-95 transition-all hover:bg-orange-100 whitespace-nowrap">
+                  <Scale size={13} /> Estimate
+                </button>
+              </div>
+              {form.weight && (
+                <p className="text-[11px] text-stone-400 pl-1">
+                  {+form.weight < 1 ? `${(+form.weight * 1000).toFixed(0)}g` : `${(+form.weight).toFixed(2)} kg`}
+                  {+form.weight <= 5 ? ' · Light parcel ✓' : +form.weight <= 15 ? ' · Medium parcel' : ' · Heavy — confirm traveller can carry'}
+                </p>
+              )}
+            </div>
           </Field>
+          {showCalc && (
+            <WeightCalculator
+              onApply={kg => set('weight', String(kg))}
+              onClose={() => setShowCalc(false)}
+            />
+          )}
 
           <Field label="Description" error={errors.description}>
             <textarea className="input-field resize-none" rows={3}
