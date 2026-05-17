@@ -80,6 +80,21 @@ const io = new Server(httpServer, {
 // Connect DB
 connectDB();
 
+// Eagerly initialize Firebase Admin at startup (not lazily per-request)
+// Without this, notifications sent before the first /auth/verify call would silently fail
+try {
+  const admin = require('firebase-admin');
+  if (!admin.apps.length && process.env.FIREBASE_SERVICE_ACCOUNT) {
+    const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    admin.initializeApp({ credential: admin.credential.cert(sa) });
+    console.log('🔥 Firebase Admin initialized');
+  } else if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+    console.warn('⚠️  FIREBASE_SERVICE_ACCOUNT not set — push notifications disabled');
+  }
+} catch (e) {
+  console.error('Firebase Admin init failed:', e.message);
+}
+
 // CORS must be first so OPTIONS preflight gets Allow-Origin before rate limiters
 app.use(cors({ origin: corsOriginFn }));
 
@@ -137,7 +152,15 @@ app.use('/api/explore',       exploreRoutes);
 app.use('/api/posts',         postRoutes);
 
 // Health check — also used as a keep-alive ping endpoint
-app.get('/health', (_req, res) => res.json({ status: 'ok', app: 'kabootar', ts: Date.now() }));
+app.get('/health', (_req, res) => {
+  const admin = require('firebase-admin');
+  res.json({
+    status: 'ok',
+    app: 'kabootar',
+    ts: Date.now(),
+    firebase: admin.apps.length > 0 ? 'initialized' : 'NOT initialized — check FIREBASE_SERVICE_ACCOUNT env var',
+  });
+});
 
 // Self-ping every 13 min to prevent Render free tier sleep (sleeps after 15 min idle).
 // Uses built-in https module — no fetch() required, works on all Node.js versions.
