@@ -49,7 +49,7 @@ router.get('/users', adminOnly, async (req, res) => {
 
     const [users, total] = await Promise.all([
       User.find(filter)
-        .select('name phone profileImage role kycStatus rating totalRatings createdAt')
+        .select('name phone profileImage role kycStatus kycDocumentUrl selfieUrl kycSubmittedAt kycApprovedAt kycRejectedReason rating totalRatings tripsCompleted city bio frequentRoute isPhoneVerified createdAt')
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit),

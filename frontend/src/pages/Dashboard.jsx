@@ -370,7 +370,15 @@ export default function Dashboard() {
 
       {/* ── QUICK ACTIONS ──────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3" style={{ animation: 'staggerIn 0.35s ease 0.15s both' }}>
-        <button onClick={() => authGate(() => setShowTripModal(true))}
+        <button onClick={() => authGate(() => {
+            if (user?.kycStatus !== 'verified') {
+              import('react-hot-toast').then(({ default: t }) =>
+                t.error('KYC verification required to post trips'));
+              setTimeout(() => navigate('/kyc'), 600);
+              return;
+            }
+            setShowTripModal(true);
+          })}
           className="bg-orange-50 border border-orange-100 rounded-2xl p-4 text-left active:scale-[0.97] transition-all">
           <div className="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center mb-2.5 shadow-sm shadow-orange-200">
             <Send size={15} className="text-white" />

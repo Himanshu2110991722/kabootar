@@ -669,6 +669,116 @@ function AnnouncementsManager() {
 }
 
 // ── All users list ────────────────────────────────────────────────────────────
+const KYC_BADGE = {
+  none:     { cls: 'bg-stone-100 text-stone-500',   label: 'Unverified' },
+  pending:  { cls: 'bg-amber-100 text-amber-700',   label: '⏳ Pending' },
+  verified: { cls: 'bg-emerald-100 text-emerald-700', label: '✓ Verified' },
+  rejected: { cls: 'bg-red-100 text-red-600',       label: '✗ Rejected' },
+};
+
+function UserCard({ u }) {
+  const [open, setOpen] = useState(false);
+  const badge = KYC_BADGE[u.kycStatus] || KYC_BADGE.none;
+
+  return (
+    <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+      {/* Compact row — always visible */}
+      <button onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-stone-50 transition-colors">
+        <div className="w-10 h-10 rounded-full overflow-hidden bg-orange-50 flex items-center justify-center font-bold text-orange-500 shrink-0 border border-stone-100">
+          {u.profileImage
+            ? <img src={u.profileImage} alt="" className="w-full h-full object-cover" />
+            : <span className="text-sm">{u.name?.[0]?.toUpperCase()}</span>}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-sm font-bold text-stone-900 truncate">{u.name}</span>
+            {u.role === 'admin' && <span className="text-[9px] bg-purple-100 text-purple-700 font-bold px-1.5 py-0.5 rounded-full">ADMIN</span>}
+            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${badge.cls}`}>{badge.label}</span>
+          </div>
+          <p className="text-[11px] text-stone-400 mt-0.5 truncate">{u.phone} · {u.city || 'No city'}</p>
+        </div>
+        <div className="text-[10px] text-stone-400 shrink-0 text-right">
+          <div>{u.createdAt ? format(new Date(u.createdAt), 'dd MMM yy') : ''}</div>
+          <div className="text-stone-300">{open ? '▲' : '▼'}</div>
+        </div>
+      </button>
+
+      {/* Expanded full profile */}
+      {open && (
+        <div className="border-t border-stone-100 px-4 py-4 space-y-4 animate-fade-in">
+
+          {/* Profile details */}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div><span className="text-stone-400 font-semibold">Phone</span><p className="text-stone-800 mt-0.5">{u.phone} {u.isPhoneVerified ? '✓' : '✗'}</p></div>
+            <div><span className="text-stone-400 font-semibold">City</span><p className="text-stone-800 mt-0.5">{u.city || '—'}</p></div>
+            <div><span className="text-stone-400 font-semibold">Rating</span><p className="text-stone-800 mt-0.5">⭐ {u.rating?.toFixed(1) || '5.0'} ({u.totalRatings || 0})</p></div>
+            <div><span className="text-stone-400 font-semibold">Trips</span><p className="text-stone-800 mt-0.5">{u.tripsCompleted || 0} completed</p></div>
+            {u.frequentRoute?.from && (
+              <div className="col-span-2"><span className="text-stone-400 font-semibold">Frequent route</span>
+                <p className="text-stone-800 mt-0.5">{u.frequentRoute.from} → {u.frequentRoute.to}</p></div>
+            )}
+            {u.bio && (
+              <div className="col-span-2"><span className="text-stone-400 font-semibold">Bio</span>
+                <p className="text-stone-800 mt-0.5 leading-relaxed">{u.bio}</p></div>
+            )}
+            <div className="col-span-2"><span className="text-stone-400 font-semibold">KYC status</span>
+              <p className={`mt-0.5 font-bold capitalize ${KYC_BADGE[u.kycStatus]?.cls?.split(' ')[1] || 'text-stone-500'}`}>
+                {badge.label}
+                {u.kycSubmittedAt && ` · Submitted ${format(new Date(u.kycSubmittedAt), 'dd MMM yy')}`}
+                {u.kycApprovedAt && ` · Approved ${format(new Date(u.kycApprovedAt), 'dd MMM yy')}`}
+                {u.kycRejectedReason && ` · "${u.kycRejectedReason}"`}
+              </p>
+            </div>
+          </div>
+
+          {/* KYC Documents */}
+          {(u.kycDocumentUrl || u.selfieUrl) && (
+            <div>
+              <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wide mb-2">KYC Documents</p>
+              <div className="flex gap-3">
+                {u.kycDocumentUrl && (
+                  <div className="flex-1">
+                    <p className="text-[10px] text-stone-400 mb-1">ID Document</p>
+                    {u.kycDocumentUrl.endsWith('.pdf') ? (
+                      <a href={u.kycDocumentUrl} target="_blank" rel="noreferrer"
+                        className="flex items-center gap-1.5 text-xs font-semibold text-orange-500 bg-orange-50 px-3 py-2 rounded-xl">
+                        <ExternalLink size={12} /> View PDF
+                      </a>
+                    ) : (
+                      <a href={u.kycDocumentUrl} target="_blank" rel="noreferrer">
+                        <img src={u.kycDocumentUrl} alt="ID" className="w-full h-28 object-cover rounded-xl border border-stone-200 hover:opacity-90 transition-opacity" />
+                      </a>
+                    )}
+                  </div>
+                )}
+                {u.selfieUrl && (
+                  <div className="flex-1">
+                    <p className="text-[10px] text-stone-400 mb-1">Selfie</p>
+                    <a href={u.selfieUrl} target="_blank" rel="noreferrer">
+                      <img src={u.selfieUrl} alt="Selfie" className="w-full h-28 object-cover rounded-xl border border-stone-200 hover:opacity-90 transition-opacity" />
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Profile photo */}
+          {u.profileImage && (
+            <div>
+              <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wide mb-2">Profile Photo</p>
+              <a href={u.profileImage} target="_blank" rel="noreferrer">
+                <img src={u.profileImage} alt="Profile" className="w-20 h-20 object-cover rounded-2xl border border-stone-200" />
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function UserList() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -691,57 +801,27 @@ function UserList() {
   };
   const submitSearch = (e) => { e.preventDefault(); load(1, search); };
 
-  const KYC_COLOR = { none: 'text-stone-400', pending: 'text-amber-500', verified: 'text-emerald-500', rejected: 'text-red-400' };
-
   return (
     <div className="space-y-3">
       <form onSubmit={submitSearch} className="flex gap-2">
         <div className="flex-1 relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-          <input
-            className="input-field pl-8 text-sm"
-            placeholder="Search name or phone…"
-            value={search}
-            onChange={handleSearch}
-          />
+          <input className="input-field pl-8 text-sm" placeholder="Search name or phone…"
+            value={search} onChange={handleSearch} />
         </div>
         <button type="submit" className="btn-primary px-4 text-sm">Search</button>
       </form>
 
-      <p className="text-xs text-stone-400">{meta.total} total users</p>
+      <p className="text-xs text-stone-400">{meta.total} total users · tap a row to expand full profile</p>
 
       {loading ? (
-        <div className="space-y-2">{[1,2,3,4,5].map(i => <div key={i} className="card p-3 animate-pulse h-14" />)}</div>
+        <div className="space-y-2">{[1,2,3,4].map(i => <div key={i} className="bg-white border border-stone-200 rounded-2xl p-3 animate-pulse h-16" />)}</div>
       ) : (
         <div className="space-y-2">
-          {users.map(u => (
-            <div key={u._id} className="card px-3 py-2.5 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full overflow-hidden bg-orange-50 flex items-center justify-center font-bold text-orange-500 text-sm shrink-0">
-                {u.profileImage
-                  ? <img src={u.profileImage} alt={u.name} className="w-full h-full object-cover" />
-                  : u.name?.[0]?.toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-semibold text-stone-800 truncate">{u.name}</span>
-                  {u.role === 'admin' && <span className="badge bg-purple-50 text-purple-600 text-[10px]">admin</span>}
-                </div>
-                <div className="text-[11px] text-stone-400 flex items-center gap-2">
-                  <span>{u.phone}</span>
-                  <span className={`font-semibold capitalize ${KYC_COLOR[u.kycStatus] || 'text-stone-400'}`}>
-                    {u.kycStatus === 'verified' ? '✓ verified' : u.kycStatus}
-                  </span>
-                </div>
-              </div>
-              <div className="text-[11px] text-stone-400 shrink-0">
-                {u.createdAt ? format(new Date(u.createdAt), 'dd MMM yy') : ''}
-              </div>
-            </div>
-          ))}
+          {users.map(u => <UserCard key={u._id} u={u} />)}
         </div>
       )}
 
-      {/* Pagination */}
       {meta.pages > 1 && (
         <div className="flex gap-2 justify-center pt-2">
           <button onClick={() => load(page - 1)} disabled={page <= 1 || loading} className="btn-secondary px-4 text-sm disabled:opacity-40">← Prev</button>

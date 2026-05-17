@@ -65,6 +65,9 @@ export default function ProfilePage() {
   const [editingTrip,   setEditingTrip]   = useState(null);
   const [editingParcel, setEditingParcel] = useState(null);
 
+  // Always refresh user on mount so phone/KYC status is never stale from localStorage
+  useEffect(() => { refreshUser(); }, []); // eslint-disable-line
+
   useEffect(() => {
     if (!user) return;
     const today = new Date(); today.setHours(0,0,0,0);
