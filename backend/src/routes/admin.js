@@ -157,4 +157,43 @@ router.patch('/reports/:id', adminOnly, async (req, res) => {
   }
 });
 
+// POST /api/admin/purge-test-data — delete all test data, keep admin accounts
+router.post('/purge-test-data', adminOnly, async (req, res) => {
+  try {
+    const Trip    = require('../models/Trip');
+    const Parcel  = require('../models/Parcel');
+    const Message = require('../models/Message');
+    const Post    = require('../models/Post');
+    const Report  = require('../models/Report');
+    const AppNotification = require('../models/AppNotification');
+
+    const [trips, parcels, messages, posts, reports, notifs] = await Promise.all([
+      Trip.deleteMany({}),
+      Parcel.deleteMany({}),
+      Message.deleteMany({}),
+      Post.deleteMany({}),
+      Report.deleteMany({}),
+      AppNotification.deleteMany({}),
+    ]);
+
+    // Delete non-admin users
+    const usersDeleted = await User.deleteMany({ role: { $ne: 'admin' } });
+
+    res.json({
+      ok: true,
+      deleted: {
+        trips:       trips.deletedCount,
+        parcels:     parcels.deletedCount,
+        messages:    messages.deletedCount,
+        posts:       posts.deletedCount,
+        reports:     reports.deletedCount,
+        notifs:      notifs.deletedCount,
+        users:       usersDeleted.deletedCount,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;
