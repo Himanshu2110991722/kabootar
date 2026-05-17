@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
+import { uploadImageToStorage } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import { ChevronLeft, Upload, Camera, CheckCircle, Clock, XCircle, Shield } from 'lucide-react';
 import { format } from 'date-fns';
@@ -22,13 +23,12 @@ export default function KYCPage() {
   const uploadDoc = async (file) => {
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append('document', file);
-      await api.post('/kyc/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const url = await uploadImageToStorage(file, 'kyc-documents');
+      await api.post('/kyc/upload', { documentUrl: url });
       toast.success('Document uploaded!');
       setStep(2);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Upload failed');
+      toast.error(err.response?.data?.message || 'Upload failed — check your connection');
     } finally {
       setUploading(false);
     }
@@ -37,14 +37,13 @@ export default function KYCPage() {
   const uploadSelfie = async (file) => {
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append('selfie', file);
-      await api.post('/kyc/selfie', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const url = await uploadImageToStorage(file, 'kyc-selfies');
+      await api.post('/kyc/selfie', { selfieUrl: url });
       toast.success('Selfie uploaded!');
       setStep(3);
       setStatus(s => ({ ...s, kycStatus: 'pending', kycSubmittedAt: new Date().toISOString() }));
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Upload failed');
+      toast.error(err.response?.data?.message || 'Upload failed — check your connection');
     } finally {
       setUploading(false);
     }
