@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
@@ -11,7 +11,8 @@ export default function AdminPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  if (!user) { navigate('/login'); return null; }
+  const location = useLocation();
+  if (!user) { navigate('/login', { state: { from: '/admin' } }); return null; }
   if (user.role !== 'admin') {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center px-4">
