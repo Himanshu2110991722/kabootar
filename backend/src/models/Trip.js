@@ -19,8 +19,11 @@ const tripSchema = new mongoose.Schema(
     arrivalTime:   { type: String, default: '' }, // expected arrival "HH:MM", optional
     pickupStation: { type: String, default: '' },
     dropStation: { type: String, default: '' },
-    ticketUrl: { type: String, default: '' },
-    isVerified: { type: Boolean, default: false },
+    ticketUrl:    { type: String, default: '' },
+    isVerified:   { type: Boolean, default: false },
+    pnrNumber:    { type: String, default: '', trim: true },   // train PNR (10 digits)
+    flightNumber: { type: String, default: '', trim: true },   // flight e.g. "AI302"
+    trainNumber:  { type: String, default: '', trim: true },   // train number e.g. "12301"
   },
   { timestamps: true }
 );

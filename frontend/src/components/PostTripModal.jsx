@@ -26,6 +26,9 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
     availableWeight: initialData?.availableWeight?.toString() || '',
     pricePerKg:      initialData?.pricePerKg?.toString()      || '',
     notes:           initialData?.notes           || '',
+    pnrNumber:    initialData?.pnrNumber    || '',
+    flightNumber: initialData?.flightNumber || '',
+    trainNumber:  initialData?.trainNumber  || '',
   });
   const [errors, setErrors]   = useState({});
   const [loading, setLoading] = useState(false);
@@ -58,6 +61,9 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
         pickupStation:   form.fromStation,
         departureTime:   form.departureTime,
         arrivalTime:     form.arrivalTime,
+        pnrNumber:    form.pnrNumber.replace(/\s/g,'').toUpperCase(),
+        flightNumber: form.flightNumber.replace(/\s/g,'').toUpperCase(),
+        trainNumber:  form.trainNumber.replace(/\s/g,'').toUpperCase(),
       };
       const { data } = isEdit
         ? await api.patch(`/trips/${tripId}`, payload)
@@ -132,6 +138,44 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
               ))}
             </div>
           </Field>
+
+          {/* PNR / Flight number — optional but builds trust */}
+          {(form.transportMode === 'train') && (
+            <div className="space-y-2">
+              <Field label="🎫 PNR Number (optional — builds trust)"
+                hint="Senders can verify your ticket on the official NTES site">
+                <input className="input-field tracking-widest font-mono" placeholder="e.g. 4521637890"
+                  maxLength={10} inputMode="numeric"
+                  value={form.pnrNumber}
+                  onChange={e => set('pnrNumber', e.target.value.replace(/\D/g, '').slice(0, 10))} />
+              </Field>
+              <Field label="🚂 Train Number (optional)"
+                hint="e.g. 12301 for Howrah Rajdhani">
+                <input className="input-field font-mono" placeholder="e.g. 12301"
+                  maxLength={6} inputMode="numeric"
+                  value={form.trainNumber}
+                  onChange={e => set('trainNumber', e.target.value.replace(/\D/g, '').slice(0, 6))} />
+              </Field>
+              {form.pnrNumber.length === 10 && (
+                <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                  <span className="text-emerald-500 text-sm">✓</span>
+                  <p className="text-[11px] text-emerald-700 font-semibold">
+                    Senders will see a "Verify PNR" button — builds trust instantly!
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {form.transportMode === 'flight' && (
+            <Field label="✈️ Flight Number (optional — builds trust)"
+              hint="e.g. AI302 or 6E456 · senders can track on Flightradar">
+              <input className="input-field font-mono uppercase" placeholder="e.g. AI302"
+                maxLength={7}
+                value={form.flightNumber}
+                onChange={e => set('flightNumber', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0, 7))} />
+            </Field>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Weight (kg)" error={errors.availableWeight}>

@@ -103,7 +103,7 @@ router.post('/', protect, async (req, res) => {
       return res.status(429).json({ message: 'You already have 3 upcoming trips. Complete or delete one before posting another.' });
     }
 
-    const { fromCity, toCity, date, transportMode, availableWeight, pricePerKg, notes, pickupStation, dropStation, departureTime, arrivalTime } = req.body;
+    const { fromCity, toCity, date, transportMode, availableWeight, pricePerKg, notes, pickupStation, dropStation, departureTime, arrivalTime, pnrNumber, flightNumber, trainNumber } = req.body;
 
     if (!fromCity || !toCity || !date || !transportMode || !availableWeight || pricePerKg === undefined) {
       return res.status(400).json({ message: 'All required fields must be provided' });
@@ -122,6 +122,9 @@ router.post('/', protect, async (req, res) => {
       dropStation:    dropStation    || '',
       departureTime:  departureTime  || '',
       arrivalTime:    arrivalTime    || '',
+      pnrNumber:    (pnrNumber    || '').replace(/\s/g, '').toUpperCase(),
+      flightNumber: (flightNumber || '').replace(/\s/g, '').toUpperCase(),
+      trainNumber:  (trainNumber  || '').replace(/\s/g, '').toUpperCase(),
     });
 
     await trip.populate('userId', 'name profileImage maskedPhone rating kycStatus tripsCompleted city');

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { format } from 'date-fns';
 import { MapPin, Trash2, MessageCircle, Star,
-         Train, Plane, Bus, Car, CheckCircle, ChevronRight, Clock, Edit2 } from 'lucide-react';
+         Train, Plane, Bus, Car, CheckCircle, ChevronRight, Clock, Edit2, ExternalLink } from 'lucide-react';
 import TravelerProfileModal from './TravelerProfileModal';
 
 const TRANSPORT_ICONS  = { train: Train, flight: Plane, bus: Bus, car: Car };
@@ -155,6 +155,8 @@ https://app.kabutar.in`
                   <div className="flex items-center gap-1 flex-wrap">
                     <span className="text-xs font-semibold text-stone-800 truncate">{traveler.name}</span>
                     {isVerified && <CheckCircle size={10} className="text-emerald-500 fill-emerald-500 shrink-0" />}
+                    {trip.pnrNumber && <span className="text-[9px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded-full border border-blue-100">🎫 PNR</span>}
+                    {trip.flightNumber && <span className="text-[9px] bg-sky-50 text-sky-600 font-bold px-1.5 py-0.5 rounded-full border border-sky-100">✈️ Flight</span>}
                   </div>
                   <div className="flex items-center gap-1.5 text-[10px] text-stone-400 flex-wrap mt-0.5">
                     <span className="flex items-center gap-0.5">
@@ -165,6 +167,29 @@ https://app.kabutar.in`
                     {traveler.city && <span>· 📍 {traveler.city}</span>}
                     {traveler.tripsCompleted > 0 && <span>· {traveler.tripsCompleted} trips done</span>}
                   </div>
+                  {/* PNR / Flight verify link */}
+                  {trip.pnrNumber && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(`https://www.indianrail.gov.in/cgi_bin/inet_pnstat_cgi.cgi?Pnrno1=${trip.pnrNumber}`, '_blank');
+                      }}
+                      className="mt-1 flex items-center gap-1 text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-2 py-1 rounded-lg active:scale-95 transition-all w-fit">
+                      <ExternalLink size={10} />
+                      Verify PNR {trip.pnrNumber.slice(0,3)}···{trip.pnrNumber.slice(-3)} on NTES
+                    </button>
+                  )}
+                  {trip.flightNumber && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(`https://www.flightradar24.com/${trip.flightNumber}`, '_blank');
+                      }}
+                      className="mt-1 flex items-center gap-1 text-[10px] font-bold text-sky-600 bg-sky-50 border border-sky-100 px-2 py-1 rounded-lg active:scale-95 transition-all w-fit">
+                      <ExternalLink size={10} />
+                      Track {trip.flightNumber} on Flightradar
+                    </button>
+                  )}
                 </div>
                 {!isPast && <ChevronRight size={12} className="text-orange-400 shrink-0" />}
               </button>
