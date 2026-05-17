@@ -52,7 +52,7 @@ export default function KYCPage() {
   );
 
   const uploadBack = (file) => doUpload(
-    file, 'kyc-documents', '/kyc/upload-back', 'documentBackUrl',
+    file, 'kyc-documents', '/kyc/upload', 'documentBackUrl',
     (url) => { setBackPreview(url); toast.success('Back uploaded ✓'); setStep(3); }
   );
 

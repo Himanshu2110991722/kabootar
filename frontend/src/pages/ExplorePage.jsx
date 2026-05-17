@@ -4,8 +4,9 @@ import api from '../lib/api';
 import TripCard from '../components/TripCard';
 import ParcelCard from '../components/ParcelCard';
 import { TripCardSkeleton, ParcelCardSkeleton } from '../components/SkeletonCard';
-import { TrendingUp, Star, RefreshCw, ChevronRight, Users } from 'lucide-react';
+import { TrendingUp, Star, RefreshCw, ChevronRight, Users, Send, Package } from 'lucide-react';
 import { useAuthGate } from '../hooks/useAuthGate';
+import { useAuth } from '../context/AuthContext';
 import PostTripModal from '../components/PostTripModal';
 import PostParcelModal from '../components/PostParcelModal';
 
@@ -41,6 +42,7 @@ function Section({ icon, title, cta, onCta, children, loading, skeletonCount = 2
 export default function ExplorePage() {
   const navigate  = useNavigate();
   const authGate  = useAuthGate();
+  const { user }  = useAuth();
 
   const [data,       setData]       = useState(null);
   const [loading,    setLoading]    = useState(true);
@@ -78,6 +80,41 @@ export default function ExplorePage() {
           className="w-9 h-9 bg-stone-100 rounded-xl flex items-center justify-center active:scale-90 transition-all">
           <RefreshCw size={15} className={`text-stone-500 ${refreshing ? 'animate-spin' : ''}`}
             style={{ animationDuration: '0.8s' }} />
+        </button>
+      </div>
+
+      {/* ── POST ACTIONS ── */}
+      <div className="grid grid-cols-2 gap-2.5">
+        <button
+          onClick={() => authGate(() => {
+            if (user?.kycStatus !== 'verified') {
+              import('react-hot-toast').then(({ default: t }) => t.error('KYC required to post trips'));
+              setTimeout(() => navigate('/kyc'), 600);
+              return;
+            }
+            setShowTrip(true);
+          })}
+          className="flex items-center gap-2.5 rounded-2xl px-4 py-3 active:scale-[0.97] transition-all text-left"
+          style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)', boxShadow: '0 3px 12px rgba(249,115,22,0.3)' }}>
+          <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+            <Send size={15} className="text-white" />
+          </div>
+          <div>
+            <p className="text-xs font-black text-white">Post a Trip</p>
+            <p className="text-[10px] text-orange-100">Earn by carrying</p>
+          </div>
+        </button>
+        <button
+          onClick={() => authGate(() => setShowParcel(true))}
+          className="flex items-center gap-2.5 rounded-2xl px-4 py-3 active:scale-[0.97] transition-all text-left"
+          style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)', boxShadow: '0 3px 12px rgba(59,130,246,0.3)' }}>
+          <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+            <Package size={15} className="text-white" />
+          </div>
+          <div>
+            <p className="text-xs font-black text-white">Send Parcel</p>
+            <p className="text-[10px] text-blue-100">Find a traveller</p>
+          </div>
         </button>
       </div>
 

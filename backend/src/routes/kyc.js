@@ -3,35 +3,19 @@ const router = express.Router();
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
 
-// POST /api/kyc/upload — save Firebase Storage URL for ID document (front)
+// POST /api/kyc/upload — save Firebase Storage URLs for ID document (front + optional back)
 router.post('/upload', protect, async (req, res) => {
   try {
-    const { documentUrl } = req.body;
-    if (!documentUrl) return res.status(400).json({ message: 'documentUrl required' });
+    const { documentUrl, documentBackUrl } = req.body;
+    if (!documentUrl && !documentBackUrl)
+      return res.status(400).json({ message: 'documentUrl or documentBackUrl required' });
 
-    const user = await User.findByIdAndUpdate(
-      req.user._id,
-      { kycDocumentUrl: documentUrl, kycStatus: 'pending', kycSubmittedAt: new Date() },
-      { new: true }
-    ).select('-reviews');
-    res.json({ user, message: 'Document front uploaded successfully' });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
+    const updates = {};
+    if (documentUrl)     { updates.kycDocumentUrl = documentUrl; updates.kycStatus = 'pending'; updates.kycSubmittedAt = new Date(); }
+    if (documentBackUrl) { updates.kycDocumentBackUrl = documentBackUrl; }
 
-// POST /api/kyc/upload-back — save Firebase Storage URL for ID document (back)
-router.post('/upload-back', protect, async (req, res) => {
-  try {
-    const { documentBackUrl } = req.body;
-    if (!documentBackUrl) return res.status(400).json({ message: 'documentBackUrl required' });
-
-    const user = await User.findByIdAndUpdate(
-      req.user._id,
-      { kycDocumentBackUrl: documentBackUrl },
-      { new: true }
-    ).select('-reviews');
-    res.json({ user, message: 'Document back uploaded successfully' });
+    const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true }).select('-reviews');
+    res.json({ user, message: 'Document uploaded successfully' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

@@ -370,6 +370,8 @@ export default function Dashboard() {
 
       {/* ── QUICK ACTIONS ──────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3" style={{ animation: 'staggerIn 0.35s ease 0.15s both' }}>
+
+        {/* Post a Trip */}
         <button onClick={() => authGate(() => {
             if (user?.kycStatus !== 'verified') {
               import('react-hot-toast').then(({ default: t }) =>
@@ -379,20 +381,33 @@ export default function Dashboard() {
             }
             setShowTripModal(true);
           })}
-          className="bg-orange-50 border border-orange-100 rounded-2xl p-4 text-left active:scale-[0.97] transition-all">
-          <div className="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center mb-2.5 shadow-sm shadow-orange-200">
-            <Send size={15} className="text-white" />
+          className="relative overflow-hidden rounded-2xl p-4 text-left active:scale-[0.97] transition-all"
+          style={{ background: 'linear-gradient(145deg, #f97316, #ea580c)', boxShadow: '0 4px 16px rgba(249,115,22,0.35)' }}>
+          {/* Decorative circle */}
+          <div className="absolute -bottom-4 -right-4 w-20 h-20 rounded-full bg-white/10 pointer-events-none" />
+          <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center mb-3 backdrop-blur-sm">
+            <span className="text-xl">✈️</span>
           </div>
-          <p className="text-sm font-bold text-stone-900">I'm Travelling</p>
-          <p className="text-[11px] text-stone-400 mt-0.5">Post trip · earn carrying</p>
+          <p className="text-sm font-black text-white leading-tight">I'm Travelling</p>
+          <p className="text-[11px] text-orange-100 mt-1 leading-relaxed">Post your trip &amp; earn by carrying parcels</p>
+          <div className="mt-2.5 inline-flex items-center gap-1 bg-white/20 rounded-lg px-2 py-0.5">
+            <span className="text-[10px] font-bold text-white">Earn ₹200–₹1,500 / trip →</span>
+          </div>
         </button>
+
+        {/* Send a Parcel */}
         <button onClick={() => authGate(() => setShowParcelModal(true))}
-          className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-left active:scale-[0.97] transition-all">
-          <div className="w-9 h-9 rounded-xl bg-blue-500 flex items-center justify-center mb-2.5 shadow-sm shadow-blue-200">
-            <Package size={15} className="text-white" />
+          className="relative overflow-hidden rounded-2xl p-4 text-left active:scale-[0.97] transition-all"
+          style={{ background: 'linear-gradient(145deg, #3b82f6, #2563eb)', boxShadow: '0 4px 16px rgba(59,130,246,0.35)' }}>
+          <div className="absolute -bottom-4 -right-4 w-20 h-20 rounded-full bg-white/10 pointer-events-none" />
+          <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center mb-3 backdrop-blur-sm">
+            <span className="text-xl">📦</span>
           </div>
-          <p className="text-sm font-bold text-stone-900">Send a Parcel</p>
-          <p className="text-[11px] text-stone-400 mt-0.5">Find someone on your route</p>
+          <p className="text-sm font-black text-white leading-tight">Send a Parcel</p>
+          <p className="text-[11px] text-blue-100 mt-1 leading-relaxed">Find a traveller on your route today</p>
+          <div className="mt-2.5 inline-flex items-center gap-1 bg-white/20 rounded-lg px-2 py-0.5">
+            <span className="text-[10px] font-bold text-white">Cheaper than couriers →</span>
+          </div>
         </button>
       </div>
 
