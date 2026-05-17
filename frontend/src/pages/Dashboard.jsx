@@ -176,13 +176,21 @@ export default function Dashboard() {
   const hideFrom = () => setTimeout(() => setShowFrom(false), 150);
   const hideTo   = () => setTimeout(() => setShowTo(false),   150);
 
-  return (
-    <div className="px-4 py-4 space-y-4 pb-8">
+  const FEATURES = [
+    { icon: '💰', title: 'Earn on trips', sub: '₹300–₹1000 avg' },
+    { icon: '⚡', title: 'Fast & reliable', sub: 'Real-time tracking' },
+    { icon: '🛡️', title: 'Trusted community', sub: 'Verified travellers' },
+    { icon: '🤝', title: 'People helping people', sub: 'Across 100+ cities' },
+  ];
 
-      {/* ── HERO — greeting only (overflow-hidden safe here, no dropdowns) ── */}
-      <div className="rounded-t-3xl overflow-hidden"
+  return (
+    <div className="px-4 py-4 space-y-4 pb-8 lg:px-0 lg:py-0 lg:space-y-0">
+
+      {/* ── HERO ── */}
+      <div className="rounded-t-3xl lg:rounded-none overflow-hidden"
         style={{ background: 'linear-gradient(150deg, #f97316 0%, #ea580c 55%, #c2410c 100%)' }}>
-        <div className="px-5 pt-5 pb-7" style={{ animation: 'staggerIn 0.35s ease both' }}>
+        {/* Left content */}
+        <div className="px-5 pt-5 pb-7 lg:px-8 lg:pt-8 lg:pb-8 lg:flex-1" style={{ animation: 'staggerIn 0.35s ease both' }}>
           <p className="text-orange-100 text-xs font-semibold">
             Good {getGreeting()} 👋
             {user && (activeTripsCount > 0 || pendingParcelsCount > 0) && (
@@ -193,32 +201,52 @@ export default function Dashboard() {
           </p>
           {user ? (
             <>
-              <h1 className="text-white text-[22px] font-black leading-tight mt-0.5">
-                Hey, {firstName}!
+              <h1 className="text-white text-[22px] lg:text-4xl font-black leading-tight mt-0.5 lg:mt-2">
+                {user ? `Turn every trip\ninto earnings` : `Hey, ${firstName}!`}
               </h1>
-              <p style={{
-                opacity: phraseVisible ? 1 : 0,
-                transform: phraseVisible ? 'translateY(0)' : 'translateY(6px)',
-                transition: 'opacity 0.35s ease, transform 0.35s ease',
-                color: 'rgba(255,237,213,0.85)',
-                fontSize: 12, marginTop: 2, fontWeight: 500,
-              }}>
+              <p className="hidden lg:block text-orange-100 text-sm mt-2 font-medium">Travel → Deliver → Earn</p>
+              <p style={{ opacity: phraseVisible ? 1 : 0, transform: phraseVisible ? 'translateY(0)' : 'translateY(6px)', transition: 'opacity 0.35s ease, transform 0.35s ease', color: 'rgba(255,237,213,0.85)', fontSize: 12, marginTop: 2, fontWeight: 500 }} className="lg:hidden">
                 {LOGGED_IN_PHRASES[phraseIdx % LOGGED_IN_PHRASES.length]}
               </p>
             </>
           ) : (
-            <h1 className="text-white text-[22px] font-black leading-tight mt-0.5"
-              style={{
-                opacity: phraseVisible ? 1 : 0,
-                transform: phraseVisible ? 'translateY(0)' : 'translateY(8px)',
-                transition: 'opacity 0.35s ease, transform 0.35s ease',
-              }}>
-              {HERO_PHRASES[phraseIdx % HERO_PHRASES.length]}
+            <h1 className="text-white text-[22px] lg:text-4xl font-black leading-tight mt-0.5 lg:mt-2"
+              style={{ opacity: phraseVisible ? 1 : 0, transform: phraseVisible ? 'translateY(0)' : 'translateY(8px)', transition: 'opacity 0.35s ease, transform 0.35s ease', whiteSpace: 'pre-line' }}>
+              {`Turn every trip\ninto earnings`}
             </h1>
           )}
         </div>
+
+        {/* Right illustration (desktop only) */}
+        <div className="hidden lg:flex items-center justify-center px-8 py-4 shrink-0">
+          <div className="relative w-48 h-36">
+            {/* Flying parcel illustration */}
+            <div className="absolute right-0 top-0 text-7xl" style={{ animation: 'birdBob 3s ease-in-out infinite', filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.2))' }}>📦</div>
+            <div className="absolute left-8 bottom-0 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-xl">📍</div>
+            <div className="absolute right-4 bottom-8 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-lg">📍</div>
+            <svg className="absolute inset-0 w-full h-full" viewBox="0 0 192 144" fill="none">
+              <path d="M40 120 Q96 60 160 40" stroke="rgba(255,255,255,0.4)" strokeWidth="2" strokeDasharray="6 4" fill="none"/>
+            </svg>
+          </div>
+        </div>
       </div>
 
+      {/* ── DESKTOP FEATURES STRIP ── */}
+      <div className="hidden lg:grid grid-cols-4 gap-3 bg-white border-b border-stone-100 px-8 py-4">
+        {FEATURES.map(f => (
+          <div key={f.title} className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-orange-50 flex items-center justify-center text-xl shrink-0">{f.icon}</div>
+            <div>
+              <p className="text-sm font-bold text-stone-900">{f.title}</p>
+              <p className="text-[11px] text-stone-400">{f.sub}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── DESKTOP TWO-COLUMN CONTENT WRAPPER ── */}
+      <div className="lg:grid lg:grid-cols-[1fr,380px] lg:gap-6 lg:px-8 lg:pt-6 lg:items-start">
+      <div className="lg:space-y-5">
       {/* ── SEARCH CARD — outside overflow-hidden so dropdowns render freely ── */}
       {/* Negative margin pulls card up to visually overlap the hero bottom     */}
       <div className="bg-white rounded-b-3xl rounded-t-2xl shadow-lg relative z-10"
@@ -599,6 +627,81 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      </div>{/* close lg:space-y-5 */}
+
+      {/* ── DESKTOP RIGHT SIDEBAR ── */}
+      <aside className="hidden lg:block space-y-5 lg:sticky lg:top-4">
+
+        {/* Quick post actions */}
+        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-stone-50">
+            <p className="text-xs font-black text-stone-400 uppercase tracking-wide">Quick Post</p>
+          </div>
+          <button onClick={() => authGate(() => {
+              if (user?.kycStatus !== 'verified') { import('react-hot-toast').then(({ default: t }) => t.error('KYC required')); setTimeout(() => navigate('/kyc'), 600); return; }
+              setShowTripModal(true);
+            })}
+            className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-orange-50 transition-colors border-b border-stone-50">
+            <div className="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center shrink-0"><Send size={15} className="text-white" /></div>
+            <div className="text-left flex-1"><p className="text-sm font-bold text-stone-900">I'm Travelling</p><p className="text-[11px] text-stone-400">Post trip &amp; start earning</p></div>
+            <ArrowRight size={14} className="text-stone-300 shrink-0" />
+          </button>
+          <button onClick={() => authGate(() => setShowParcelModal(true))}
+            className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-blue-50 transition-colors">
+            <div className="w-9 h-9 rounded-xl bg-blue-500 flex items-center justify-center shrink-0"><Package size={15} className="text-white" /></div>
+            <div className="text-left flex-1"><p className="text-sm font-bold text-stone-900">Send a Parcel</p><p className="text-[11px] text-stone-400">Find a traveller on your route</p></div>
+            <ArrowRight size={14} className="text-stone-300 shrink-0" />
+          </button>
+        </div>
+
+        {/* Trending routes sidebar */}
+        {trending.length > 0 && (
+          <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-stone-50">
+              <div className="flex items-center gap-2">
+                <TrendingUp size={13} className="text-orange-500" />
+                <p className="text-xs font-black text-stone-800">Trending Routes</p>
+              </div>
+              <button onClick={() => navigate('/explore')} className="text-[10px] font-bold text-orange-500">All →</button>
+            </div>
+            {trending.slice(0, 5).map((r, i) => (
+              <button key={i} onClick={() => navigate('/trips', { state: { from: r.from, to: r.to } })}
+                className="w-full flex items-center gap-3 px-4 py-3 border-b border-stone-50 last:border-0 hover:bg-stone-50 transition-colors">
+                <div className="w-7 h-7 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+                  <span className="text-[10px] font-black text-orange-500">#{i+1}</span>
+                </div>
+                <div className="flex-1 min-w-0 text-left">
+                  <p className="text-xs font-bold text-stone-900 truncate">{r.from} → {r.to}</p>
+                  <p className="text-[10px] text-stone-400">{r.count} traveller{r.count !== 1 ? 's' : ''} available</p>
+                </div>
+                <ArrowRight size={12} className="text-stone-300 shrink-0" />
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Community updates sidebar */}
+        {announcements.length > 0 && (
+          <div className="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-stone-50">
+              <div className="flex items-center gap-2">
+                <Megaphone size={13} className="text-orange-500" />
+                <p className="text-xs font-black text-stone-800">Community</p>
+              </div>
+              <button onClick={() => navigate('/notifications')} className="text-[10px] font-bold text-orange-500">All →</button>
+            </div>
+            {announcements.slice(0, 3).map((a, i) => (
+              <div key={a._id} className="flex gap-3 px-4 py-3 border-b border-stone-50 last:border-0 items-start">
+                <span className="text-lg shrink-0">{a.icon}</span>
+                <div><p className="text-xs font-bold text-stone-900">{a.title}</p><p className="text-[11px] text-stone-400 mt-0.5 leading-relaxed line-clamp-2">{a.body}</p></div>
+              </div>
+            ))}
+          </div>
+        )}
+      </aside>
+
+      </div>{/* close lg:grid */}
 
       {showTripModal && (
         <PostTripModal onClose={() => setShowTripModal(false)}
