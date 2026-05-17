@@ -17,10 +17,12 @@ export const auth = getAuth(app);
 export async function uploadImageToStorage(file, folder = 'profile-images') {
   const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
   const storage  = getStorage(app);
-  const ext      = file.name?.split('.').pop() || 'jpg';
+  const ext      = file.name?.split('.').pop()?.toLowerCase() || 'jpg';
   const filename = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
   const fileRef  = ref(storage, filename);
-  await uploadBytes(fileRef, file);
+  // Explicitly set contentType so Firebase Storage accepts images and PDFs
+  const metadata = { contentType: file.type || (ext === 'pdf' ? 'application/pdf' : 'image/jpeg') };
+  await uploadBytes(fileRef, file, metadata);
   return getDownloadURL(fileRef);
 }
 

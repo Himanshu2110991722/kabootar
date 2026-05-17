@@ -3,7 +3,7 @@ const router = express.Router();
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
 
-// POST /api/kyc/upload — save Firebase Storage URL for ID document
+// POST /api/kyc/upload — save Firebase Storage URL for ID document (front)
 router.post('/upload', protect, async (req, res) => {
   try {
     const { documentUrl } = req.body;
@@ -14,7 +14,24 @@ router.post('/upload', protect, async (req, res) => {
       { kycDocumentUrl: documentUrl, kycStatus: 'pending', kycSubmittedAt: new Date() },
       { new: true }
     ).select('-reviews');
-    res.json({ user, message: 'Document uploaded successfully' });
+    res.json({ user, message: 'Document front uploaded successfully' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/kyc/upload-back — save Firebase Storage URL for ID document (back)
+router.post('/upload-back', protect, async (req, res) => {
+  try {
+    const { documentBackUrl } = req.body;
+    if (!documentBackUrl) return res.status(400).json({ message: 'documentBackUrl required' });
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { kycDocumentBackUrl: documentBackUrl },
+      { new: true }
+    ).select('-reviews');
+    res.json({ user, message: 'Document back uploaded successfully' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
