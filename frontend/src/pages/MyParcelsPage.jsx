@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
-import { MessageCircle, ChevronDown, ChevronUp, Camera, Trash2, Edit2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { MessageCircle, ChevronDown, ChevronUp, Camera, Trash2, Edit2, CheckCircle2, AlertTriangle, History } from 'lucide-react';
 import ParcelStatusTimeline from '../components/ParcelStatusTimeline';
 import OtpVerifyModal from '../components/OtpVerifyModal';
 import PostParcelModal from '../components/PostParcelModal';
@@ -94,6 +94,21 @@ export default function MyParcelsPage() {
   };
 
   const [confirming, setConfirming] = useState({});
+  const [marking,    setMarking]    = useState({});
+
+  const markDelivered = async (parcelId) => {
+    if (!confirm('Mark this parcel as delivered? This will complete the transaction and update the traveller\'s delivery count.')) return;
+    setMarking(m => ({ ...m, [parcelId]: true }));
+    try {
+      const { data } = await api.patch(`/parcels/${parcelId}/mark-delivered`);
+      setParcels(prev => prev.map(p => p._id === parcelId ? { ...p, ...data.parcel } : p));
+      toast.success('✅ Parcel marked as delivered! Traveller count updated.');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed — try again');
+    } finally {
+      setMarking(m => ({ ...m, [parcelId]: false }));
+    }
+  };
   const confirmReceipt = async (parcelId) => {
     if (!confirm('Confirm you have received this parcel? This will complete the delivery and update the traveller\'s count.')) return;
     setConfirming(c => ({ ...c, [parcelId]: true }));
@@ -119,18 +134,24 @@ export default function MyParcelsPage() {
     </div>
   );
 
+  const activeParcels    = parcels.filter(p => !['completed','cancelled'].includes(p.status));
+  const completedParcels = parcels.filter(p => p.status === 'completed');
+
   return (
-    <div className="px-4 py-5">
+    <div className="px-4 py-5 pb-8">
       <h1 className="text-xl font-bold text-stone-900 mb-4">My Parcels</h1>
 
-      {parcels.length === 0 ? (
+      {activeParcels.length === 0 && completedParcels.length === 0 ? (
         <div className="card p-8 text-center">
           <div className="text-3xl mb-2">📦</div>
           <p className="text-stone-500 text-sm">No parcels yet. Post a parcel or accept one as a traveler.</p>
         </div>
       ) : (
+        <div className="space-y-5">
+        {/* ── Active / In-Progress parcels ── */}
+        {activeParcels.length > 0 && (
         <div className="space-y-3">
-          {parcels.map(parcel => {
+          {activeParcels.map(parcel => {
             const asTraveler = isTraveler(parcel);
             const sender = parcel.userId;
             const traveler = parcel.travelerId;
@@ -253,6 +274,18 @@ export default function MyParcelsPage() {
                       </div>
                     )}
 
+                    {/* Mark as Delivered — sender can directly mark without OTP */}
+                    {['accepted', 'picked', 'in_transit'].includes(parcel.status) && (
+                      <button
+                        onClick={() => markDelivered(parcel._id)}
+                        disabled={marking[parcel._id]}
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm text-white active:scale-[0.98] transition-all disabled:opacity-60"
+                        style={{ background: 'linear-gradient(135deg, #10b981, #059669)', boxShadow: '0 4px 12px rgba(16,185,129,0.3)' }}>
+                        <CheckCircle2 size={16} />
+                        {marking[parcel._id] ? 'Confirming…' : '✅ Mark Parcel as Delivered'}
+                      </button>
+                    )}
+
                     {/* Confirm Receipt — shown when traveller has verified delivery via OTP */}
                     {parcel.status === 'delivered' && (
                       <button
@@ -324,6 +357,42 @@ export default function MyParcelsPage() {
               </div>
             );
           })}
+        </div>
+        )}
+
+        {/* ── Delivery / Travel History ── */}
+        {completedParcels.length > 0 && (
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <History size={14} className="text-stone-400" />
+              <h2 className="text-sm font-bold text-stone-500 uppercase tracking-wide">Delivery History</h2>
+              <div className="flex-1 h-px bg-stone-100" />
+              <span className="text-xs text-stone-400">{completedParcels.length} completed</span>
+            </div>
+            <div className="space-y-2">
+              {completedParcels.map(parcel => {
+                const asTrav = isTraveler(parcel);
+                return (
+                  <div key={parcel._id} className="bg-stone-50 border border-stone-100 rounded-2xl px-4 py-3 flex items-center gap-3">
+                    <span className="text-xl shrink-0">{ITEM_EMOJI[parcel.itemType] || '📦'}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-stone-700 truncate">
+                        {parcel.fromCity} → {parcel.toCity}
+                      </p>
+                      <p className="text-[11px] text-stone-400 mt-0.5">
+                        {asTrav ? '✈️ Carried' : '📤 Sent'} ·{' '}
+                        {parcel.offeredPrice ? `₹${parcel.offeredPrice}` : parcel.weight + ' kg'} ·{' '}
+                        {parcel.completedAt ? formatDistanceToNow(new Date(parcel.completedAt), { addSuffix: true }) : ''}
+                      </p>
+                    </div>
+                    <span className="badge-green text-[10px] shrink-0">✅ Done</span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         </div>
       )}
 

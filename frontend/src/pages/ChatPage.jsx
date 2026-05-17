@@ -125,14 +125,29 @@ export default function ChatPage() {
       let parcel = myRes.data.parcels.find(p => {
         const s = String(p.userId?._id || p.userId || '');
         const t = String(p.travelerId?._id || p.travelerId || '');
-        return (s === String(userId) || t === String(userId)) && !['delivered','cancelled'].includes(p.status);
+        return (s === String(userId) || t === String(userId)) && !['completed','cancelled'].includes(p.status);
       });
       if (!parcel) { const r = await api.get(`/parcels/by-sender/${userId}`); parcel = r.data.parcels?.[0]; }
       if (!parcel) { toast.error('No active parcel request found.'); return; }
-      if (parcel.status === 'open') { await api.post(`/parcels/${parcel._id}/accept`, { offeredPrice: amount }); toast.success(`Accepted! ₹${amount} locked in 🤝`); }
-      else { await api.patch(`/parcels/${parcel._id}`, { offeredPrice: amount }); toast.success(`₹${amount} agreed!`); }
+
+      const iAmSender = String(parcel.userId?._id || parcel.userId) === String(user._id);
+
+      if (iAmSender) {
+        // Sender agreeing to traveller's counter-offer — just update price
+        await api.patch(`/parcels/${parcel._id}`, { offeredPrice: amount });
+        toast.success(`₹${amount} price agreed! 🤝 Traveller will confirm pickup.`);
+      } else {
+        // Traveller accepting sender's offer — formally accept the parcel carry
+        if (parcel.status === 'open') {
+          await api.post(`/parcels/${parcel._id}/accept`, { offeredPrice: amount });
+          toast.success(`Accepted! ₹${amount} locked in 🤝 You're now carrying this parcel.`);
+        } else {
+          await api.patch(`/parcels/${parcel._id}`, { offeredPrice: amount });
+          toast.success(`₹${amount} agreed! 🤝`);
+        }
+      }
       if (msgId != null) setAcceptedOffers(prev => new Set([...prev, msgId]));
-    } catch (err) { toast.error(err.response?.data?.message || 'Could not update parcel'); }
+    } catch (err) { toast.error(err.response?.data?.message || 'Could not update — try again'); }
   };
 
   const handleImagePick = (e) => {
@@ -334,6 +349,22 @@ export default function ChatPage() {
           </button>
         </div>
       )}
+
+      {/* ── Quick messages ── */}
+      <div className="bg-white border-t border-stone-50 px-3 pt-2 pb-0 overflow-x-auto shrink-0"
+        style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+        <div className="flex gap-1.5 pb-2">
+          {['Deal! ✅', 'When can you pick up?', 'Thank you 🙏', 'Handle with care 📦',
+            'What\'s your ETA?', 'Meet at station?', 'Is it fragile?', 'Payment on delivery?'
+          ].map(msg => (
+            <button key={msg} onMouseDown={e => e.preventDefault()}
+              onClick={() => sendMessage(msg)}
+              className="shrink-0 px-3 py-1.5 bg-stone-100 hover:bg-orange-50 hover:text-orange-600 text-stone-600 rounded-full text-xs font-medium transition-colors active:scale-95 border border-stone-200 whitespace-nowrap">
+              {msg}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* ── Input bar — always pinned at bottom ── */}
       <div className="bg-white border-t border-stone-100 px-3 py-3 flex gap-2 items-end shrink-0">

@@ -156,8 +156,9 @@ export default function TripsPage() {
   }, [trips, activeFilter, loc.enabled, loc.nearbyCities, loc.city]); // eslint-disable-line
 
   const sod = startOfToday();
-  const futureMyTrips = myTrips.filter(t => new Date(t.date) >= sod);
-  const pastMyTrips   = myTrips.filter(t => new Date(t.date) <  sod);
+  const futureMyTrips = myTrips.filter(t => t.status === 'active' && new Date(t.date) >= sod);
+  // Travel history: past dates OR trips marked as completed (full)
+  const pastMyTrips   = myTrips.filter(t => new Date(t.date) < sod || t.status === 'completed');
   const isOwner = (t) => t.userId?._id === user?._id || t.userId === user?._id;
 
   const renderStaggered = (items, fn) =>

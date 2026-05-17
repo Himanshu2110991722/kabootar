@@ -262,6 +262,44 @@ router.delete('/:id', protect, async (req, res) => {
   }
 });
 
+// PATCH /api/parcels/:id/mark-delivered — sender directly marks delivered (no OTP needed)
+router.patch('/:id/mark-delivered', protect, async (req, res) => {
+  try {
+    const parcel = await Parcel.findById(req.params.id)
+      .populate('travelerId', 'name _id');
+    if (!parcel) return res.status(404).json({ message: 'Parcel not found' });
+    if (parcel.userId.toString() !== req.user._id.toString())
+      return res.status(403).json({ message: 'Only the sender can mark as delivered' });
+    if (['completed', 'cancelled'].includes(parcel.status))
+      return res.status(400).json({ message: `Parcel is already ${parcel.status}` });
+
+    parcel.status      = 'completed';
+    parcel.deliveredAt = parcel.deliveredAt || new Date();
+    parcel.completedAt = new Date();
+    await parcel.save();
+
+    const User = require('../models/User');
+    await User.findByIdAndUpdate(parcel.travelerId._id, { $inc: { tripsCompleted: 1 } });
+
+    notify(parcel.travelerId._id, {
+      title: '🎊 Delivery confirmed by sender!',
+      body:  `${req.user.name} confirmed delivery. Your delivery count is now updated!`,
+      type:  'parcel',
+      data:  { type: 'delivery_confirmed', parcelId: String(parcel._id), screen: '/my-parcels' },
+    }).catch(() => {});
+
+    req.io.to(String(parcel.travelerId._id)).emit('delivery_confirmed', {
+      parcelId:   String(parcel._id),
+      senderName: req.user.name,
+      message:    '🎊 Sender confirmed your delivery! Count updated.',
+    });
+
+    res.json({ parcel, message: 'Marked as delivered' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // POST /api/parcels/:id/confirm-receipt — sender confirms delivery → completes transaction
 router.post('/:id/confirm-receipt', protect, async (req, res) => {
   try {
