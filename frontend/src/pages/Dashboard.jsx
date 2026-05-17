@@ -187,10 +187,10 @@ export default function Dashboard() {
     <div className="px-4 py-4 space-y-4 pb-8 lg:px-0 lg:py-0 lg:space-y-0">
 
       {/* ── HERO ── */}
-      <div className="rounded-t-3xl lg:rounded-none overflow-hidden"
+      <div className="rounded-t-3xl lg:rounded-none overflow-hidden lg:flex lg:items-stretch"
         style={{ background: 'linear-gradient(150deg, #f97316 0%, #ea580c 55%, #c2410c 100%)' }}>
         {/* Left content */}
-        <div className="px-5 pt-5 pb-7 lg:px-8 lg:pt-8 lg:pb-8 lg:flex-1" style={{ animation: 'staggerIn 0.35s ease both' }}>
+        <div className="px-5 pt-5 pb-7 lg:px-8 lg:pt-8 lg:pb-8 lg:flex-1 lg:flex lg:flex-col lg:justify-center" style={{ animation: 'staggerIn 0.35s ease both' }}>
           <p className="text-orange-100 text-xs font-semibold">
             Good {getGreeting()} 👋
             {user && (activeTripsCount > 0 || pendingParcelsCount > 0) && (
@@ -217,17 +217,113 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Right illustration (desktop only) */}
-        <div className="hidden lg:flex items-center justify-center px-8 py-4 shrink-0">
-          <div className="relative w-48 h-36">
-            {/* Flying parcel illustration */}
-            <div className="absolute right-0 top-0 text-7xl" style={{ animation: 'birdBob 3s ease-in-out infinite', filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.2))' }}>📦</div>
-            <div className="absolute left-8 bottom-0 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-xl">📍</div>
-            <div className="absolute right-4 bottom-8 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-lg">📍</div>
-            <svg className="absolute inset-0 w-full h-full" viewBox="0 0 192 144" fill="none">
-              <path d="M40 120 Q96 60 160 40" stroke="rgba(255,255,255,0.4)" strokeWidth="2" strokeDasharray="6 4" fill="none"/>
-            </svg>
-          </div>
+        {/* Right — transport illustration (desktop only) */}
+        <div className="hidden lg:flex items-end justify-end shrink-0 overflow-hidden" style={{ width: 480, minHeight: 220 }}>
+          <svg viewBox="0 0 480 220" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
+            {/* Animated dashed route lines */}
+            <path d="M55 175 Q200 80 350 48" stroke="rgba(255,255,255,0.28)" strokeWidth="1.5" strokeDasharray="8 5" fill="none"/>
+            <path d="M55 175 Q220 155 420 145" stroke="rgba(255,255,255,0.18)" strokeWidth="1" strokeDasharray="5 4" fill="none"/>
+
+            {/* Origin pin */}
+            <circle cx="55" cy="170" r="14" fill="rgba(255,255,255,0.18)"/>
+            <circle cx="55" cy="170" r="7" fill="white"/>
+            <circle cx="55" cy="170" r="3" fill="rgba(249,115,22,0.7)"/>
+
+            {/* Destination pin */}
+            <circle cx="420" cy="148" r="12" fill="rgba(255,255,255,0.18)"/>
+            <circle cx="420" cy="148" r="6" fill="white"/>
+            <circle cx="420" cy="148" r="2.5" fill="rgba(249,115,22,0.7)"/>
+
+            {/* ── AIRPLANE (top right, tilted) ── */}
+            <g transform="translate(290,28) rotate(-18)" style={{ filter: 'drop-shadow(0 6px 14px rgba(0,0,0,0.22))' }}>
+              {/* Fuselage */}
+              <ellipse cx="0" cy="0" rx="48" ry="10" fill="white"/>
+              {/* Nose */}
+              <path d="M48 -5 Q62 0 48 5 Z" fill="rgba(255,255,255,0.9)"/>
+              {/* Tail vertical fin */}
+              <path d="M-46 -10 L-32 -28 L-22 -10 Z" fill="rgba(255,255,255,0.75)"/>
+              {/* Tail horizontal fin */}
+              <path d="M-42 6 L-30 18 L-18 6 Z" fill="rgba(255,255,255,0.75)"/>
+              {/* Main wings */}
+              <path d="M-8 2 L-36 34 L8 14 Z" fill="rgba(255,255,255,0.88)"/>
+              <path d="M12 -2 L4 -30 L28 -8 Z" fill="rgba(255,255,255,0.88)"/>
+              {/* Windows */}
+              <circle cx="22" cy="-3" r="3.5" fill="rgba(253,186,116,0.7)"/>
+              <circle cx="10" cy="-3" r="3.5" fill="rgba(253,186,116,0.7)"/>
+              <circle cx="-2" cy="-3" r="3.5" fill="rgba(253,186,116,0.7)"/>
+              <circle cx="-14" cy="-3" r="3.5" fill="rgba(253,186,116,0.6)"/>
+              {/* Engine */}
+              <ellipse cx="-5" cy="10" rx="8" ry="4" fill="rgba(255,255,255,0.6)"/>
+            </g>
+
+            {/* ── TRAIN (bottom left, perspective) ── */}
+            <g transform="translate(62,128)" style={{ filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.18))' }}>
+              {/* Car 1 body */}
+              <rect x="0" y="8" width="110" height="42" rx="6" fill="rgba(255,255,255,0.92)"/>
+              {/* Car 1 cabin top */}
+              <rect x="5" y="-8" width="78" height="20" rx="5" fill="rgba(255,255,255,0.82)"/>
+              {/* Windows */}
+              <rect x="10" y="-4" width="14" height="11" rx="2.5" fill="rgba(253,186,116,0.55)"/>
+              <rect x="28" y="-4" width="14" height="11" rx="2.5" fill="rgba(253,186,116,0.55)"/>
+              <rect x="46" y="-4" width="14" height="11" rx="2.5" fill="rgba(253,186,116,0.55)"/>
+              {/* Body windows */}
+              <rect x="10" y="16" width="14" height="10" rx="2" fill="rgba(253,186,116,0.4)"/>
+              <rect x="30" y="16" width="14" height="10" rx="2" fill="rgba(253,186,116,0.4)"/>
+              <rect x="50" y="16" width="14" height="10" rx="2" fill="rgba(253,186,116,0.4)"/>
+              <rect x="70" y="16" width="14" height="10" rx="2" fill="rgba(253,186,116,0.4)"/>
+              {/* Orange stripe */}
+              <rect x="0" y="30" width="110" height="5" rx="2" fill="rgba(249,115,22,0.35)"/>
+              {/* Wheels */}
+              <circle cx="22" cy="53" r="10" fill="rgba(255,255,255,0.7)" stroke="rgba(255,255,255,0.4)" strokeWidth="2"/>
+              <circle cx="22" cy="53" r="4" fill="rgba(249,115,22,0.5)"/>
+              <circle cx="88" cy="53" r="10" fill="rgba(255,255,255,0.7)" stroke="rgba(255,255,255,0.4)" strokeWidth="2"/>
+              <circle cx="88" cy="53" r="4" fill="rgba(249,115,22,0.5)"/>
+              {/* Headlight */}
+              <circle cx="107" cy="22" r="5" fill="rgba(253,230,138,0.8)"/>
+            </g>
+
+            {/* ── BUS (mid right) ── */}
+            <g transform="translate(355,98)" opacity="0.82" style={{ filter: 'drop-shadow(0 3px 8px rgba(0,0,0,0.15))' }}>
+              <rect x="0" y="0" width="72" height="34" rx="6" fill="rgba(255,255,255,0.85)"/>
+              <rect x="4" y="-12" width="60" height="16" rx="4" fill="rgba(255,255,255,0.75)"/>
+              <rect x="8" y="-8" width="10" height="8" rx="2" fill="rgba(253,186,116,0.5)"/>
+              <rect x="22" y="-8" width="10" height="8" rx="2" fill="rgba(253,186,116,0.5)"/>
+              <rect x="36" y="-8" width="10" height="8" rx="2" fill="rgba(253,186,116,0.5)"/>
+              <rect x="8" y="10" width="10" height="7" rx="1.5" fill="rgba(253,186,116,0.4)"/>
+              <rect x="22" y="10" width="10" height="7" rx="1.5" fill="rgba(253,186,116,0.4)"/>
+              <rect x="36" y="10" width="10" height="7" rx="1.5" fill="rgba(253,186,116,0.4)"/>
+              <rect x="0" y="20" width="72" height="4" rx="2" fill="rgba(249,115,22,0.3)"/>
+              <circle cx="16" cy="37" r="8" fill="rgba(255,255,255,0.65)" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5"/>
+              <circle cx="16" cy="37" r="3.5" fill="rgba(249,115,22,0.4)"/>
+              <circle cx="56" cy="37" r="8" fill="rgba(255,255,255,0.65)" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5"/>
+              <circle cx="56" cy="37" r="3.5" fill="rgba(249,115,22,0.4)"/>
+              <rect x="68" y="8" width="4" height="12" rx="1" fill="rgba(253,230,138,0.7)"/>
+            </g>
+
+            {/* ── PARCEL BOX (floating center) ── */}
+            <g transform="translate(196, 62)" style={{ animation: 'birdBob 2.5s ease-in-out infinite', filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.25))' }}>
+              {/* Box left face */}
+              <path d="M0 24 L0 62 L32 80 L32 42 Z" fill="rgba(255,255,255,0.75)"/>
+              {/* Box right face */}
+              <path d="M32 42 L32 80 L64 62 L64 24 Z" fill="rgba(255,255,255,0.85)"/>
+              {/* Box top face */}
+              <path d="M0 24 L32 6 L64 24 L32 42 Z" fill="white"/>
+              {/* Tape vertical */}
+              <path d="M32 42 L32 80" stroke="rgba(249,115,22,0.45)" strokeWidth="5"/>
+              {/* Tape horizontal on top */}
+              <path d="M16 33 L48 33" stroke="rgba(249,115,22,0.35)" strokeWidth="4"/>
+              {/* Brand mark */}
+              <text x="10" y="65" fontSize="10" fill="rgba(249,115,22,0.5)" fontWeight="bold" fontFamily="monospace">🕊️</text>
+              {/* Box shadow */}
+              <ellipse cx="32" cy="83" rx="25" ry="6" fill="rgba(0,0,0,0.12)"/>
+            </g>
+
+            {/* Sparkles */}
+            <circle cx="170" cy="52" r="3" fill="rgba(255,255,255,0.5)"/>
+            <circle cx="390" cy="72" r="2" fill="rgba(255,255,255,0.4)"/>
+            <circle cx="448" cy="38" r="2.5" fill="rgba(255,255,255,0.35)"/>
+            <circle cx="148" cy="130" r="2" fill="rgba(255,255,255,0.3)"/>
+          </svg>
         </div>
       </div>
 

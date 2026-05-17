@@ -1,6 +1,7 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
-import { Home, Compass, MessageCircle, Bell, User, LogIn, Plus, Send, Package, X, Search } from 'lucide-react';
+import { Home, Compass, MessageCircle, Bell, User, LogIn, Plus, Send, Package, X, Search, ArrowLeftRight, Calendar } from 'lucide-react';
+import { POPULAR_CITIES } from '../lib/cityCoords';
 import { useAuth } from '../context/AuthContext';
 import { useAuthGate } from '../hooks/useAuthGate';
 import api from '../lib/api';
@@ -20,6 +21,13 @@ export default function Layout() {
   const [fabOpen,      setFabOpen]      = useState(false);
   const [showTripModal,  setShowTripModal]  = useState(false);
   const [showParcelModal,setShowParcelModal] = useState(false);
+  // Desktop header search
+  const [searchOpen,   setSearchOpen]   = useState(false);
+  const [searchType,   setSearchType]   = useState('trips');
+  const [sFrom,        setSFrom]        = useState('');
+  const [sTo,          setSTo]          = useState('');
+  const [sDate,        setSDate]        = useState('');
+  const searchRef = useRef(null);
 
   useEffect(() => {
     if (!user) { setChatUnread(0); return; }
@@ -47,12 +55,25 @@ export default function Layout() {
     loadCounts();
   }, [user]);
 
-  // Close FAB when clicking outside
+  // Close FAB / search when clicking outside
   useEffect(() => {
-    const handler = (e) => { if (fabRef.current && !fabRef.current.contains(e.target)) setFabOpen(false); };
+    const handler = (e) => {
+      if (fabRef.current && !fabRef.current.contains(e.target)) setFabOpen(false);
+      if (searchRef.current && !searchRef.current.contains(e.target)) setSearchOpen(false);
+    };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  const doHeaderSearch = () => {
+    if (!sFrom && !sTo) return;
+    setSearchOpen(false);
+    navigate(searchType === 'trips' ? '/trips' : '/parcels', {
+      state: { from: sFrom, to: sTo, date: sDate },
+    });
+  };
+
+  const todayStr = new Date().toISOString().split('T')[0];
 
   const isChat  = location.pathname === '/messages' || location.pathname.startsWith('/chat');
   const isNotif = location.pathname === '/notifications';
@@ -96,18 +117,84 @@ export default function Layout() {
           </span>
         </NavLink>
 
-        {/* Search bar */}
-        <div className="flex-1 max-w-md mx-4">
-          <div className="flex items-center gap-2 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 hover:border-orange-300 transition-colors">
+        {/* Functional search bar + dropdown */}
+        <div className="flex-1 max-w-lg mx-4 relative" ref={searchRef}>
+          <div
+            onClick={() => setSearchOpen(true)}
+            className={`flex items-center gap-2 bg-stone-50 border rounded-xl px-3 py-2.5 cursor-pointer transition-all ${searchOpen ? 'border-orange-400 ring-2 ring-orange-100 bg-white' : 'border-stone-200 hover:border-orange-300'}`}>
             <Search size={15} className="text-stone-400 shrink-0" />
-            <input
-              className="flex-1 bg-transparent outline-none text-sm text-stone-600 placeholder:text-stone-400"
-              placeholder="Search routes, cities…"
-              onFocus={() => navigate('/')}
-              readOnly
-            />
-            <kbd className="hidden xl:block text-[10px] text-stone-300 border border-stone-200 rounded px-1.5 py-0.5 font-mono shrink-0">Ctrl+K</kbd>
+            <span className="flex-1 text-sm text-stone-400 select-none">
+              {sFrom && sTo ? `${sFrom} → ${sTo}` : sFrom || sTo || 'Search routes, cities…'}
+            </span>
+            {(sFrom || sTo) && (
+              <button onClick={e => { e.stopPropagation(); setSFrom(''); setSTo(''); setSDate(''); }} className="text-stone-300 hover:text-stone-500">
+                <X size={13} />
+              </button>
+            )}
           </div>
+
+          {/* Search dropdown */}
+          {searchOpen && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-stone-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-fade-in">
+              {/* Toggle */}
+              <div className="flex border-b border-stone-100 p-3 gap-2">
+                {['trips','parcels'].map(t => (
+                  <button key={t} onClick={() => setSearchType(t)}
+                    className={`flex-1 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${searchType === t ? 'bg-orange-500 text-white' : 'bg-stone-50 text-stone-500 hover:bg-stone-100'}`}>
+                    {t === 'trips' ? '✈️ Travellers' : '📦 Parcels'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Inputs */}
+              <div className="p-3 space-y-2">
+                <div className="flex gap-2 items-center">
+                  <div className="flex-1 flex items-center gap-2 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 focus-within:border-orange-400">
+                    <div className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
+                    <input className="flex-1 bg-transparent outline-none text-sm text-stone-800 placeholder:text-stone-400 min-w-0"
+                      placeholder="From city" value={sFrom}
+                      onChange={e => setSFrom(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && doHeaderSearch()} autoFocus />
+                  </div>
+                  <button onClick={() => { const t = sFrom; setSFrom(sTo); setSTo(t); }}
+                    className="w-8 h-8 bg-stone-100 rounded-lg flex items-center justify-center hover:bg-stone-200 transition-all shrink-0">
+                    <ArrowLeftRight size={13} className="text-stone-500" />
+                  </button>
+                  <div className="flex-1 flex items-center gap-2 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2.5 focus-within:border-orange-400">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    <input className="flex-1 bg-transparent outline-none text-sm text-stone-800 placeholder:text-stone-400 min-w-0"
+                      placeholder="To city" value={sTo}
+                      onChange={e => setSTo(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && doHeaderSearch()} />
+                  </div>
+                </div>
+                {searchType === 'trips' && (
+                  <div className="flex items-center gap-2 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 focus-within:border-orange-400">
+                    <Calendar size={13} className="text-stone-400 shrink-0" />
+                    <input type="date" min={todayStr} value={sDate} onChange={e => setSDate(e.target.value)}
+                      className="flex-1 bg-transparent outline-none text-sm text-stone-600" />
+                  </div>
+                )}
+                <button onClick={doHeaderSearch} disabled={!sFrom && !sTo}
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-40 transition-all active:scale-[0.99]">
+                  <Search size={14} /> Find {searchType === 'trips' ? 'Travellers' : 'Parcels'}
+                </button>
+              </div>
+
+              {/* Popular cities quick picks */}
+              <div className="px-3 pb-3">
+                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wide mb-2">Popular routes</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[['Patna','Delhi'],['Mumbai','Pune'],['Delhi','Lucknow'],['Patna','Kolkata'],['Bangalore','Chennai']].map(([f,t]) => (
+                    <button key={f+t} onClick={() => { setSFrom(f); setSTo(t); doHeaderSearch(); }}
+                      className="text-[11px] font-semibold px-2.5 py-1 bg-stone-50 border border-stone-200 rounded-lg text-stone-600 hover:bg-orange-50 hover:border-orange-200 hover:text-orange-600 transition-all">
+                      {f} → {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Desktop nav links */}
