@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
-import { Shield, CheckCircle, XCircle, Users, ChevronLeft, Search, ExternalLink, Clock, Megaphone, Plus, Trash2, Pin, BookOpen, Star, Sparkles, Flag } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, Users, ChevronLeft, Search, ExternalLink, Clock, Megaphone, Plus, Trash2, Pin, BookOpen, Star, Sparkles, Flag, Upload } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 
 // ── Admin guard ───────────────────────────────────────────────────────────────
@@ -320,9 +320,10 @@ function DocThumb({ label, url }) {
 
 // ── Posts Manager ─────────────────────────────────────────────────────────────
 function PostsManager() {
-  const [posts,   setPosts]   = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [saving,  setSaving]  = useState(false);
+  const [posts,        setPosts]        = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [saving,       setSaving]       = useState(false);
+  const [uploadingImg, setUploadingImg] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const EMPTY = { title: '', content: '', emoji: '🕊️', image: '', stats: { route: '', time: '', saved: '' }, featured: false };
   const [form, setForm] = useState(EMPTY);
@@ -401,8 +402,42 @@ function PostsManager() {
           onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
         <textarea className="input-field w-full text-sm resize-none" rows={4} placeholder="Story content — make it real and impactful…"
           value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} />
-        <input className="input-field w-full text-xs" placeholder="Image URL (optional)" value={form.image}
-          onChange={e => setForm(f => ({ ...f, image: e.target.value }))} />
+        {/* Image — upload directly OR paste URL */}
+        <div className="space-y-1.5">
+          <label className={`flex flex-col items-center gap-2 border-2 border-dashed rounded-xl py-3 cursor-pointer transition-all ${uploadingImg ? 'border-stone-200 opacity-60' : 'border-orange-200 hover:border-orange-400'}`}>
+            {uploadingImg ? (
+              <span className="text-xs text-stone-400">Uploading…</span>
+            ) : form.image ? (
+              <div className="w-full px-2">
+                <img src={form.image} alt="" className="w-full h-24 object-cover rounded-lg" />
+                <p className="text-[10px] text-center text-emerald-500 mt-1 font-semibold">✓ Image ready</p>
+              </div>
+            ) : (
+              <>
+                <Upload size={18} className="text-orange-400" />
+                <span className="text-xs text-stone-500">Upload image (optional)</span>
+              </>
+            )}
+            <input type="file" accept="image/*" className="hidden" disabled={uploadingImg}
+              onChange={async e => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setUploadingImg(true);
+                try {
+                  const { uploadImageToStorage } = await import('../lib/firebase');
+                  const url = await uploadImageToStorage(file, 'posts');
+                  setForm(f => ({ ...f, image: url }));
+                } catch { toast.error('Image upload failed'); }
+                finally { setUploadingImg(false); }
+              }} />
+          </label>
+          {form.image && (
+            <button onClick={() => setForm(f => ({ ...f, image: '' }))}
+              className="text-[10px] text-red-400 font-semibold w-full text-center">
+              Remove image
+            </button>
+          )}
+        </div>
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-2">

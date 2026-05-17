@@ -371,7 +371,7 @@ export default function Dashboard() {
       {/* ── QUICK ACTIONS ──────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3" style={{ animation: 'staggerIn 0.35s ease 0.15s both' }}>
 
-        {/* Post a Trip */}
+        {/* Post a Trip — clearly tappable with bottom CTA */}
         <button onClick={() => authGate(() => {
             if (user?.kycStatus !== 'verified') {
               import('react-hot-toast').then(({ default: t }) =>
@@ -381,32 +381,42 @@ export default function Dashboard() {
             }
             setShowTripModal(true);
           })}
-          className="relative overflow-hidden rounded-2xl p-4 text-left active:scale-[0.97] transition-all"
-          style={{ background: 'linear-gradient(145deg, #f97316, #ea580c)', boxShadow: '0 4px 16px rgba(249,115,22,0.35)' }}>
-          {/* Decorative circle */}
-          <div className="absolute -bottom-4 -right-4 w-20 h-20 rounded-full bg-white/10 pointer-events-none" />
-          <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center mb-3 backdrop-blur-sm">
-            <span className="text-xl">✈️</span>
+          className="group relative overflow-hidden rounded-2xl text-left transition-all duration-150 active:scale-[0.96] active:brightness-90"
+          style={{ background: 'linear-gradient(145deg, #f97316, #ea580c)', boxShadow: '0 6px 20px rgba(249,115,22,0.45)' }}>
+          <div className="p-4">
+            <div className="flex items-start justify-between mb-3">
+              <div className="w-10 h-10 rounded-2xl bg-white/25 flex items-center justify-center">
+                <span className="text-xl">✈️</span>
+              </div>
+              <ArrowRight size={16} className="text-white/70 mt-1 group-active:translate-x-0.5 transition-transform" />
+            </div>
+            <p className="text-sm font-black text-white leading-tight">I'm Travelling</p>
+            <p className="text-[11px] text-orange-100 mt-1">Post trip &amp; earn carrying</p>
           </div>
-          <p className="text-sm font-black text-white leading-tight">I'm Travelling</p>
-          <p className="text-[11px] text-orange-100 mt-1 leading-relaxed">Post your trip &amp; earn by carrying parcels</p>
-          <div className="mt-2.5 inline-flex items-center gap-1 bg-white/20 rounded-lg px-2 py-0.5">
-            <span className="text-[10px] font-bold text-white">Earn ₹200–₹1,500 / trip →</span>
+          {/* Clear tap CTA at bottom */}
+          <div className="bg-black/20 px-4 py-2.5 flex items-center justify-between">
+            <span className="text-[11px] font-bold text-white">Tap to post trip</span>
+            <span className="text-white text-xs">＋</span>
           </div>
         </button>
 
-        {/* Send a Parcel */}
+        {/* Send a Parcel — clearly tappable with bottom CTA */}
         <button onClick={() => authGate(() => setShowParcelModal(true))}
-          className="relative overflow-hidden rounded-2xl p-4 text-left active:scale-[0.97] transition-all"
-          style={{ background: 'linear-gradient(145deg, #3b82f6, #2563eb)', boxShadow: '0 4px 16px rgba(59,130,246,0.35)' }}>
-          <div className="absolute -bottom-4 -right-4 w-20 h-20 rounded-full bg-white/10 pointer-events-none" />
-          <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center mb-3 backdrop-blur-sm">
-            <span className="text-xl">📦</span>
+          className="group relative overflow-hidden rounded-2xl text-left transition-all duration-150 active:scale-[0.96] active:brightness-90"
+          style={{ background: 'linear-gradient(145deg, #3b82f6, #2563eb)', boxShadow: '0 6px 20px rgba(59,130,246,0.45)' }}>
+          <div className="p-4">
+            <div className="flex items-start justify-between mb-3">
+              <div className="w-10 h-10 rounded-2xl bg-white/25 flex items-center justify-center">
+                <span className="text-xl">📦</span>
+              </div>
+              <ArrowRight size={16} className="text-white/70 mt-1 group-active:translate-x-0.5 transition-transform" />
+            </div>
+            <p className="text-sm font-black text-white leading-tight">Send a Parcel</p>
+            <p className="text-[11px] text-blue-100 mt-1">Find traveller on your route</p>
           </div>
-          <p className="text-sm font-black text-white leading-tight">Send a Parcel</p>
-          <p className="text-[11px] text-blue-100 mt-1 leading-relaxed">Find a traveller on your route today</p>
-          <div className="mt-2.5 inline-flex items-center gap-1 bg-white/20 rounded-lg px-2 py-0.5">
-            <span className="text-[10px] font-bold text-white">Cheaper than couriers →</span>
+          <div className="bg-black/20 px-4 py-2.5 flex items-center justify-between">
+            <span className="text-[11px] font-bold text-white">Tap to send parcel</span>
+            <span className="text-white text-xs">＋</span>
           </div>
         </button>
       </div>

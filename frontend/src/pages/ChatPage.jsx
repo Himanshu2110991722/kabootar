@@ -32,6 +32,8 @@ export default function ChatPage() {
   const [loading,        setLoading]        = useState(true);
   const [showRating,     setShowRating]     = useState(false);
   const [showSafetyMenu, setShowSafetyMenu] = useState(false);
+  const [activeParcel,   setActiveParcel]   = useState(null);
+  const [parcelBannerOpen, setParcelBannerOpen] = useState(true);
   const [showOfferPanel, setShowOfferPanel] = useState(false);
   const [offerAmount,    setOfferAmount]    = useState('');
   const [sendingOffer,   setSendingOffer]   = useState(false);
@@ -51,6 +53,15 @@ export default function ChatPage() {
     api.get(`/chat/${userId}`)
       .then(r => { setMessages(r.data.messages); setPartner(r.data.partner); })
       .finally(() => setLoading(false));
+    // Fetch active parcel between these two users
+    api.get('/parcels/my').then(r => {
+      const p = r.data.parcels?.find(parcel => {
+        const s = String(parcel.userId?._id || parcel.userId || '');
+        const t = String(parcel.travelerId?._id || parcel.travelerId || '');
+        return (s === userId || t === userId) && !['completed','cancelled'].includes(parcel.status);
+      });
+      setActiveParcel(p || null);
+    }).catch(() => {});
   }, [userId]);
 
   useEffect(() => {
@@ -212,7 +223,12 @@ export default function ChatPage() {
         </div>
 
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-stone-900 text-sm truncate">{partner?.name}</div>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="font-semibold text-stone-900 text-sm truncate">{partner?.name}</span>
+            {partner?.kycStatus === 'verified' && (
+              <span className="text-[9px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded-full shrink-0">✓ KYC</span>
+            )}
+          </div>
           <div className="text-xs mt-0.5 h-4">
             {partnerTyping ? (
               <span className="text-emerald-500 font-medium flex items-center gap-1">
@@ -241,6 +257,33 @@ export default function ChatPage() {
           <MoreVertical size={18} className="text-stone-400" />
         </button>
       </div>
+
+      {/* ── Active parcel banner ── */}
+      {activeParcel && parcelBannerOpen && (
+        <div className="bg-orange-50 border-b border-orange-100 px-4 py-2.5 flex items-center gap-2.5 shrink-0">
+          <span className="text-base shrink-0">📦</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-stone-800 truncate">
+              {activeParcel.fromCity} → {activeParcel.toCity}
+            </p>
+            <p className="text-[10px] text-stone-500 mt-0.5">
+              {activeParcel.weight}kg · {
+                { open:'Awaiting agreement', accepted:'In Progress ⚡', picked:'Picked up 📤',
+                  in_transit:'On the way 🚚', delivered:'Delivered — confirm?', completed:'Completed ✅'
+                }[activeParcel.status] || activeParcel.status
+              }
+              {activeParcel.offeredPrice ? ` · ₹${activeParcel.offeredPrice} agreed` : ''}
+            </p>
+          </div>
+          <button onClick={() => navigate('/my-parcels')}
+            className="text-[10px] font-bold text-orange-600 bg-orange-100 px-2.5 py-1 rounded-lg shrink-0 active:scale-95 transition-all">
+            Manage →
+          </button>
+          <button onClick={() => setParcelBannerOpen(false)} className="text-stone-300 hover:text-stone-500 shrink-0">
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {/* ── Messages — scrollable middle section ── */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
