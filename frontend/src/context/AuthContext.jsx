@@ -121,11 +121,45 @@ export const AuthProvider = ({ children }) => {
       });
     };
 
-    socket.on('kyc_approved', onApproved);
-    socket.on('kyc_rejected', onRejected);
+    // Parcel accepted → warn sender their post is now in progress
+    const onParcelInProgress = (data) => {
+      import('react-hot-toast').then(({ default: toast }) => {
+        toast(
+          `⚡ ${data.travellerName} accepted your parcel (${data.fromCity} → ${data.toCity}).\nYour post is now In Progress and hidden from public.`,
+          { duration: 8000, icon: '📦' }
+        );
+      });
+    };
+
+    // Delivery confirmed by traveller — prompt sender
+    const onAwaitingConfirmation = (data) => {
+      import('react-hot-toast').then(({ default: toast }) => {
+        toast(
+          '📦 Your parcel has arrived! Open My Parcels to confirm receipt.',
+          { duration: 10000, icon: '✅' }
+        );
+      });
+    };
+
+    // Traveller gets notified when sender confirms
+    const onDeliveryConfirmed = (data) => {
+      import('react-hot-toast').then(({ default: toast }) => {
+        toast.success(data.message || '🎊 Delivery confirmed! Your count updated.', { duration: 7000 });
+      });
+      refreshUser(); // refresh tripsCompleted count
+    };
+
+    socket.on('kyc_approved',              onApproved);
+    socket.on('kyc_rejected',              onRejected);
+    socket.on('parcel_in_progress',        onParcelInProgress);
+    socket.on('parcel_awaiting_confirmation', onAwaitingConfirmation);
+    socket.on('delivery_confirmed',        onDeliveryConfirmed);
     return () => {
-      socket.off('kyc_approved', onApproved);
-      socket.off('kyc_rejected', onRejected);
+      socket.off('kyc_approved',              onApproved);
+      socket.off('kyc_rejected',              onRejected);
+      socket.off('parcel_in_progress',        onParcelInProgress);
+      socket.off('parcel_awaiting_confirmation', onAwaitingConfirmation);
+      socket.off('delivery_confirmed',        onDeliveryConfirmed);
     };
   }, [user?._id]);
 

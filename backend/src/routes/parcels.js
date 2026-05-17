@@ -138,11 +138,21 @@ router.post('/:id/accept', protect, async (req, res) => {
     await parcel.populate('userId', 'name maskedPhone rating');
     await parcel.populate('travelerId', 'name maskedPhone rating');
 
-    notify(parcel.userId._id || parcel.userId, {
+    const senderId = String(parcel.userId._id || parcel.userId);
+
+    notify(senderId, {
       title: '🎉 Traveler accepted your parcel!',
       body:  `${req.user.name} will carry your parcel from ${parcel.fromCity} → ${parcel.toCity}`,
       type:  'parcel',
       data:  { type: 'parcel_accepted', parcelId: String(parcel._id), screen: '/my-parcels' },
+    });
+
+    // Real-time warning to sender — post is now hidden from public
+    req.io.to(senderId).emit('parcel_in_progress', {
+      parcelId:     String(parcel._id),
+      travellerName: req.user.name,
+      fromCity:     parcel.fromCity,
+      toCity:       parcel.toCity,
     });
 
     res.json({ parcel });
@@ -247,6 +257,47 @@ router.delete('/:id', protect, async (req, res) => {
     const parcel = await Parcel.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!parcel) return res.status(404).json({ message: 'Parcel not found or not authorized' });
     res.json({ message: 'Parcel deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/parcels/:id/confirm-receipt — sender confirms delivery → completes transaction
+router.post('/:id/confirm-receipt', protect, async (req, res) => {
+  try {
+    const parcel = await Parcel.findById(req.params.id)
+      .populate('userId',    'name')
+      .populate('travelerId','name');
+    if (!parcel) return res.status(404).json({ message: 'Parcel not found' });
+
+    if (parcel.userId._id?.toString() !== req.user._id.toString())
+      return res.status(403).json({ message: 'Only the sender can confirm receipt' });
+    if (parcel.status !== 'delivered')
+      return res.status(400).json({ message: 'Parcel must be in delivered state first' });
+
+    parcel.status      = 'completed';
+    parcel.completedAt = new Date();
+    await parcel.save();
+
+    const User = require('../models/User');
+    await User.findByIdAndUpdate(parcel.travelerId._id, { $inc: { tripsCompleted: 1 } });
+
+    // Notify traveller — their count went up
+    notify(parcel.travelerId._id, {
+      title: '🎊 Delivery confirmed by sender!',
+      body:  `${req.user.name} confirmed receipt. Your delivery count is now updated!`,
+      type:  'parcel',
+      data:  { type: 'delivery_confirmed', parcelId: String(parcel._id), screen: '/my-parcels' },
+    }).catch(() => {});
+
+    // Real-time socket to traveller
+    req.io.to(String(parcel.travelerId._id)).emit('delivery_confirmed', {
+      parcelId:    String(parcel._id),
+      senderName:  req.user.name,
+      message:     '🎊 Sender confirmed your delivery! Delivery count updated.',
+    });
+
+    res.json({ parcel, message: 'Receipt confirmed. Thank you!' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

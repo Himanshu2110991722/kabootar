@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
-import { MessageCircle, ChevronDown, ChevronUp, Camera, Trash2, Edit2 } from 'lucide-react';
+import { MessageCircle, ChevronDown, ChevronUp, Camera, Trash2, Edit2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import ParcelStatusTimeline from '../components/ParcelStatusTimeline';
 import OtpVerifyModal from '../components/OtpVerifyModal';
 import PostParcelModal from '../components/PostParcelModal';
@@ -12,14 +12,25 @@ import PostParcelModal from '../components/PostParcelModal';
 const ITEM_EMOJI = { documents: '📄', electronics: '📱', clothes: '👕', others: '📦' };
 
 const STATUS_BADGE = {
-  open: 'badge-green',
-  matched: 'badge-blue',
-  requested: 'badge-blue',
-  accepted: 'badge-amber',
-  picked: 'badge-orange',
+  open:       'badge-green',
+  matched:    'badge-blue',
+  requested:  'badge-blue',
+  accepted:   'badge-amber',
+  picked:     'badge-orange',
   in_transit: 'badge-amber',
-  delivered: 'badge-stone',
-  cancelled: 'badge-stone',
+  delivered:  'badge-violet',
+  completed:  'badge-green',
+  cancelled:  'badge-stone',
+};
+
+const STATUS_LABEL = {
+  open:       '🟢 Open',
+  accepted:   '⚡ In Progress',
+  picked:     '📤 Picked Up',
+  in_transit: '🚚 In Transit',
+  delivered:  '📦 Delivered — Confirm?',
+  completed:  '✅ Completed',
+  cancelled:  '❌ Cancelled',
 };
 
 export default function MyParcelsPage() {
@@ -82,6 +93,21 @@ export default function MyParcelsPage() {
     setParcels(prev => prev.map(p => p._id === updated._id ? { ...p, ...updated } : p));
   };
 
+  const [confirming, setConfirming] = useState({});
+  const confirmReceipt = async (parcelId) => {
+    if (!confirm('Confirm you have received this parcel? This will complete the delivery and update the traveller\'s count.')) return;
+    setConfirming(c => ({ ...c, [parcelId]: true }));
+    try {
+      const { data } = await api.post(`/parcels/${parcelId}/confirm-receipt`);
+      setParcels(prev => prev.map(p => p._id === parcelId ? { ...p, ...data.parcel } : p));
+      toast.success('✅ Receipt confirmed! Traveller\'s delivery count updated.');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to confirm');
+    } finally {
+      setConfirming(c => ({ ...c, [parcelId]: false }));
+    }
+  };
+
   if (loading) return (
     <div className="px-4 py-5 space-y-3">
       {[1, 2, 3].map(i => (
@@ -127,12 +153,12 @@ export default function MyParcelsPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className={STATUS_BADGE[parcel.status] || 'badge-stone'}>
-                      {parcel.status}
+                  <div className="flex flex-col items-end gap-1">
+                    <span className={`badge text-[10px] ${STATUS_BADGE[parcel.status] || 'badge-stone'}`}>
+                      {STATUS_LABEL[parcel.status] || parcel.status}
                     </span>
                     <span className={`badge text-[10px] ${asTraveler ? 'bg-purple-50 text-purple-600' : 'bg-sky-50 text-sky-600'}`}>
-                      {asTraveler ? 'Traveler' : 'Sender'}
+                      {asTraveler ? '✈️ Carrying' : '📤 Sending'}
                     </span>
                   </div>
                 </div>
@@ -213,33 +239,67 @@ export default function MyParcelsPage() {
 
                 {/* Sender actions */}
                 {!asTraveler && (
-                  <div className="flex gap-2 flex-wrap">
-                    {traveler && typeof traveler === 'object' && (
+                  <div className="space-y-2">
+                    {/* In-progress warning banner */}
+                    {['accepted','picked','in_transit'].includes(parcel.status) && (
+                      <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                        <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
+                        <p className="text-[11px] text-amber-700 leading-relaxed">
+                          <strong>In Progress</strong> — This post is hidden from public listings.
+                          {parcel.status === 'accepted' ? ' Traveller has accepted and will pick up soon.' : ''}
+                          {parcel.status === 'picked' ? ' Traveller has picked up your parcel.' : ''}
+                          {parcel.status === 'in_transit' ? ' Your parcel is on its way.' : ''}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Confirm Receipt — shown when traveller has verified delivery via OTP */}
+                    {parcel.status === 'delivered' && (
                       <button
-                        onClick={() => navigate(`/chat/${traveler._id}`)}
-                        className="btn-secondary flex items-center gap-1.5 text-sm py-1.5"
-                      >
-                        <MessageCircle size={13} /> Chat traveler
+                        onClick={() => confirmReceipt(parcel._id)}
+                        disabled={confirming[parcel._id]}
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm text-white active:scale-[0.98] transition-all disabled:opacity-60"
+                        style={{ background: 'linear-gradient(135deg, #10b981, #059669)', boxShadow: '0 4px 12px rgba(16,185,129,0.35)' }}>
+                        <CheckCircle2 size={16} />
+                        {confirming[parcel._id] ? 'Confirming…' : '✅ Confirm Parcel Received'}
                       </button>
                     )}
-                    {/* Edit — only for open parcels */}
-                    {parcel.status === 'open' && (
-                      <button
-                        onClick={() => setEditingParcel(parcel)}
-                        className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 flex items-center gap-1 text-xs font-semibold text-stone-600 hover:bg-stone-100 transition-colors"
-                      >
-                        <Edit2 size={12} /> Edit
-                      </button>
+
+                    {parcel.status === 'delivered' && (
+                      <p className="text-[11px] text-stone-400 text-center">
+                        Confirming receipt completes the delivery and updates the traveller's count.
+                      </p>
                     )}
-                    {/* Delete — only for open/cancelled parcels */}
-                    {['open','cancelled'].includes(parcel.status) && (
-                      <button
-                        onClick={() => handleDelete(parcel._id)}
-                        className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center text-red-400 hover:bg-red-100 transition-colors"
-                      >
-                        <Trash2 size={13} />
-                      </button>
+
+                    {/* Completed state */}
+                    {parcel.status === 'completed' && (
+                      <div className="flex items-center justify-center gap-2 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+                        <CheckCircle2 size={14} className="text-emerald-500" />
+                        <p className="text-xs font-bold text-emerald-700">Delivery completed! Thank you for using Kabutar 🕊️</p>
+                      </div>
                     )}
+
+                    <div className="flex gap-2 flex-wrap">
+                      {traveler && typeof traveler === 'object' && (
+                        <button
+                          onClick={() => navigate(`/chat/${traveler._id}`)}
+                          className="btn-secondary flex items-center gap-1.5 text-sm py-1.5">
+                          <MessageCircle size={13} /> Chat
+                        </button>
+                      )}
+                      {parcel.status === 'open' && (
+                        <button onClick={() => setEditingParcel(parcel)}
+                          className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 flex items-center gap-1 text-xs font-semibold text-stone-600">
+                          <Edit2 size={12} /> Edit
+                        </button>
+                      )}
+                      {['open','cancelled'].includes(parcel.status) && (
+                        <button onClick={() => handleDelete(parcel._id)}
+                          className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center text-red-400">
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -258,6 +318,7 @@ export default function MyParcelsPage() {
                     acceptedAt={parcel.acceptedAt}
                     pickedAt={parcel.pickedAt}
                     deliveredAt={parcel.deliveredAt}
+                    completedAt={parcel.completedAt}
                   />
                 )}
               </div>

@@ -110,15 +110,25 @@ router.post('/delivery/verify', protect, async (req, res) => {
     parcel.deliveryOtpExpiry = null;
     await parcel.save();
 
-    // Notify sender that parcel was delivered
+    // Notify sender to confirm receipt (button appears in their My Parcels)
     notify(parcel.userId, {
-      title: '✅ Parcel delivered!',
-      body:  `Your parcel from ${parcel.fromCity} → ${parcel.toCity} has been delivered`,
+      title: '📦 Parcel arrived! Please confirm receipt',
+      body:  `Your parcel from ${parcel.fromCity} → ${parcel.toCity} has been delivered. Tap to confirm.`,
       type:  'parcel',
-      data:  { type: 'delivered', parcelId: String(parcel._id), screen: '/my-parcels' },
+      data:  { type: 'awaiting_confirmation', parcelId: String(parcel._id), screen: '/my-parcels' },
     });
 
-    res.json({ parcel, message: 'Delivery confirmed' });
+    // Real-time prompt to sender
+    const User = require('../models/User');
+    const sender = await User.findById(parcel.userId).select('_id');
+    if (sender) {
+      req.io?.to(String(sender._id)).emit('parcel_awaiting_confirmation', {
+        parcelId: String(parcel._id),
+        message:  'Your parcel has arrived! Please confirm receipt.',
+      });
+    }
+
+    res.json({ parcel, message: 'Delivery confirmed — awaiting sender confirmation' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
