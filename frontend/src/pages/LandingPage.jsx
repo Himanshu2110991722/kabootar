@@ -355,7 +355,7 @@ export default function LandingPage() {
                 style={{ background: 'linear-gradient(135deg,#f97316,#ea580c)', boxShadow: '0 4px 14px rgba(249,115,22,0.35)' }}>
                 ⬇ Download App
               </a>
-              <button onClick={() => navigate('/')}
+              <button onClick={() => navigate('/app')}
                 className="px-4 py-2 rounded-xl text-sm font-bold text-stone-700 border border-stone-200 hover:border-orange-300 hover:text-orange-500 transition-all">
                 Open Web App
               </button>
@@ -379,7 +379,7 @@ export default function LandingPage() {
                 </button>
               ))}
               <div className="flex gap-2 pt-2">
-                <button onClick={() => navigate('/')}
+                <button onClick={() => navigate('/app')}
                   className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white text-center"
                   style={{ background: 'linear-gradient(135deg,#f97316,#ea580c)' }}>
                   Open Web App
@@ -991,7 +991,7 @@ export default function LandingPage() {
                   className="flex items-center gap-3 bg-white text-stone-900 font-bold px-8 py-4 rounded-2xl text-base shadow-lg active:scale-95 transition-all hover:shadow-xl">
                   <span className="text-xl">▶</span> Download App
                 </a>
-                <button onClick={() => navigate('/')}
+                <button onClick={() => navigate('/app')}
                   className="flex items-center gap-3 bg-white/20 border border-white/30 text-white font-bold px-8 py-4 rounded-2xl text-base backdrop-blur-sm active:scale-95 transition-all hover:bg-white/30">
                   🌐 Open Web App
                 </button>

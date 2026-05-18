@@ -199,7 +199,7 @@ export default function Layout() {
 
         {/* Desktop nav links */}
         <nav className="hidden xl:flex items-center gap-1">
-          <NavLink to="/" end className={({ isActive }) => `flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition-all ${isActive ? 'text-orange-500 bg-orange-50' : 'text-stone-500 hover:text-stone-700 hover:bg-stone-50'}`}>
+          <NavLink to="/app" className={({ isActive }) => `flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition-all ${isActive ? 'text-orange-500 bg-orange-50' : 'text-stone-500 hover:text-stone-700 hover:bg-stone-50'}`}>
             <Home size={16} strokeWidth={2} /> Home
           </NavLink>
           <NavLink to="/explore" className={({ isActive }) => `flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition-all ${isActive ? 'text-orange-500 bg-orange-50' : 'text-stone-500 hover:text-stone-700 hover:bg-stone-50'}`}>
@@ -303,7 +303,7 @@ export default function Layout() {
         <div className="flex justify-around items-center py-2 lg:max-w-7xl lg:mx-auto lg:px-6">
 
           {/* Home */}
-          <NavLink to="/" end className={({ isActive }) => `flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all ${isActive ? 'text-orange-500' : 'text-stone-400'}`}>
+          <NavLink to="/app" className={({ isActive }) => `flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all ${isActive ? 'text-orange-500' : 'text-stone-400'}`}>
             <Home size={20} strokeWidth={1.8} />
             <span className="text-[10px] font-semibold">Home</span>
           </NavLink>

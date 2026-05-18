@@ -30,8 +30,16 @@ const PrivateRoute = ({ children }) => {
 
 const PublicOnlyRoute = ({ children }) => {
   const { user } = useAuth();
-  return !user ? children : <Navigate to="/" replace />;
+  return !user ? children : <Navigate to="/app" replace />;
 };
+
+// Smart gate at "/": landing page for guests, redirect to /app for logged-in users
+function LandingGate() {
+  const { user, loading } = useAuth();
+  if (loading) return <div style={{ minHeight: '100vh' }} />;
+  if (user) return <Navigate to="/app" replace />;
+  return <LandingPage />;
+}
 
 // Handles Android hardware back button via React Router
 function AndroidBackHandler() {
@@ -44,7 +52,7 @@ function AndroidBackHandler() {
     let unsub = null;
 
     import('@capacitor/app').then(({ App }) => {
-      const ROOT_PATHS = ['/', '/login'];
+      const ROOT_PATHS = ['/', '/app', '/login'];
       const isRoot = () => ROOT_PATHS.includes(location.pathname);
 
       const handler = App.addListener('backButton', ({ canGoBack }) => {
@@ -73,9 +81,11 @@ function AppRoutes() {
     <>
       <AndroidBackHandler />
       <Routes>
+        {/* Landing page at root — smart gate: guests see landing, users go to /app */}
+        <Route path="/" element={<LandingGate />} />
         <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
         <Route element={<Layout />}>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/app" element={<Dashboard />} />
           <Route path="/explore" element={<ExplorePage />} />
           <Route path="/trips" element={<TripsPage />} />
           <Route path="/parcels" element={<ParcelsPage />} />
@@ -86,11 +96,10 @@ function AppRoutes() {
           <Route path="/my-parcels" element={<PrivateRoute><MyParcelsPage /></PrivateRoute>} />
           <Route path="/kyc" element={<PrivateRoute><KYCPage /></PrivateRoute>} />
         </Route>
-        <Route path="/landing" element={<LandingPage />} />
         <Route path="/complete-profile" element={<CompleteProfilePage />} />
         <Route path="/delete-account" element={<DeleteAccountPage />} />
         <Route path="/admin" element={<AdminPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/app" replace />} />
       </Routes>
     </>
   );
