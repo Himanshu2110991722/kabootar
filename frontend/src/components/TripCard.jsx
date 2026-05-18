@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { MapPin, Trash2, MessageCircle, Star,
          Train, Plane, Bus, Car, CheckCircle, ChevronRight, Clock, Edit2, ExternalLink } from 'lucide-react';
 import TravelerProfileModal from './TravelerProfileModal';
+import TripDetailModal from './TripDetailModal';
 
 const TRANSPORT_ICONS  = { train: Train, flight: Plane, bus: Bus, car: Car };
 const TRANSPORT_EMOJI  = { train: '🚂', flight: '✈️', bus: '🚌', car: '🚗' };
@@ -45,6 +46,7 @@ export default function TripCard({ trip, showDelete, onDelete, onEdit, onMarkFul
   const navigate   = useNavigate();
   const authGate   = useAuthGate();
   const [showProfile, setShowProfile] = useState(false);
+  const [showDetail,  setShowDetail]  = useState(false);
 
   const Icon       = TRANSPORT_ICONS[trip.transportMode] || Train;
   const traveler   = trip.userId;
@@ -83,7 +85,10 @@ https://app.kabutar.in`
 
   return (
     <>
-      <div className={`card p-3.5 animate-fade-in ${isPast ? 'opacity-60' : ''}`}>
+      <div
+        className={`card p-3.5 animate-fade-in ${isPast ? 'opacity-60' : ''} ${!isOwn && !isPast ? 'cursor-pointer hover:shadow-md hover:border-orange-200 transition-all' : ''}`}
+        onClick={() => { if (!isOwn && !isPast) setShowDetail(true); }}
+      >
 
         {/* ── Row 1: Role label + date + transport + WA ── */}
         <div className="flex items-center gap-1.5 mb-2.5">
@@ -142,59 +147,41 @@ https://app.kabutar.in`
           <span>Charges ₹{trip.pricePerKg}/kg</span>
         </div>
 
-        {/* ── Row 5: Traveller profile + actions ── */}
+        {/* ── Row 5: Traveller + trust badges + "View details" CTA ── */}
         {traveler && typeof traveler === 'object' && (
-          <div className="flex items-center gap-2 pt-2.5 border-t border-stone-100">
+          <div className="pt-2.5 border-t border-stone-100">
             {!isOwn ? (
-              <button
-                onClick={() => !isPast && setShowProfile(true)}
-                className="flex items-center gap-2 flex-1 min-w-0 text-left"
-              >
-                <Avatar user={traveler} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1 flex-wrap">
-                    <span className="text-xs font-semibold text-stone-800 truncate">{traveler.name}</span>
-                    {isVerified && <CheckCircle size={10} className="text-emerald-500 fill-emerald-500 shrink-0" />}
-                    {trip.pnrNumber && <span className="text-[9px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded-full border border-blue-100">🎫 PNR</span>}
-                    {trip.flightNumber && <span className="text-[9px] bg-sky-50 text-sky-600 font-bold px-1.5 py-0.5 rounded-full border border-sky-100">✈️ Flight</span>}
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[10px] text-stone-400 flex-wrap mt-0.5">
-                    <span className="flex items-center gap-0.5">
+              <div>
+                {/* Traveller row */}
+                <div className="flex items-center gap-2 mb-2.5">
+                  <Avatar user={traveler} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs font-bold text-stone-800 truncate">{traveler.name}</span>
+                      {isVerified && <CheckCircle size={10} className="text-emerald-500 fill-emerald-500 shrink-0" />}
+                      {trip.pnrNumber && <span className="text-[9px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded-full border border-blue-100">🎫 PNR</span>}
+                      {trip.flightNumber && <span className="text-[9px] bg-sky-50 text-sky-600 font-bold px-1.5 py-0.5 rounded-full border border-sky-100">✈️ {trip.flightNumber}</span>}
+                      {trip.trainNumber && <span className="text-[9px] bg-indigo-50 text-indigo-600 font-bold px-1.5 py-0.5 rounded-full border border-indigo-100">🚂 {trip.trainNumber}</span>}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] text-stone-400 mt-0.5">
                       <Star size={9} className="text-amber-400 fill-amber-400" />
-                      {traveler.rating?.toFixed(1)}
-                      {traveler.totalRatings > 0 && ` (${traveler.totalRatings})`}
-                    </span>
-                    {traveler.city && <span>· 📍 {traveler.city}</span>}
-                    {traveler.tripsCompleted > 0 && <span>· {traveler.tripsCompleted} trips done</span>}
+                      <span className="font-semibold">{traveler.rating?.toFixed(1)}</span>
+                      {traveler.tripsCompleted > 0 && <span>· {traveler.tripsCompleted} deliveries</span>}
+                    </div>
                   </div>
-                  {/* PNR / Flight verify link */}
-                  {trip.pnrNumber && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        window.open(`https://www.indianrail.gov.in/cgi_bin/inet_pnstat_cgi.cgi?Pnrno1=${trip.pnrNumber}`, '_blank');
-                      }}
-                      className="mt-1 flex items-center gap-1 text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-2 py-1 rounded-lg active:scale-95 transition-all w-fit">
-                      <ExternalLink size={10} />
-                      Verify PNR {trip.pnrNumber.slice(0,3)}···{trip.pnrNumber.slice(-3)} on NTES
-                    </button>
-                  )}
-                  {trip.flightNumber && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        window.open(`https://www.flightradar24.com/${trip.flightNumber}`, '_blank');
-                      }}
-                      className="mt-1 flex items-center gap-1 text-[10px] font-bold text-sky-600 bg-sky-50 border border-sky-100 px-2 py-1 rounded-lg active:scale-95 transition-all w-fit">
-                      <ExternalLink size={10} />
-                      Track {trip.flightNumber} on Flightradar
-                    </button>
-                  )}
                 </div>
-                {!isPast && <ChevronRight size={12} className="text-orange-400 shrink-0" />}
-              </button>
+                {/* View details CTA */}
+                {!isPast && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowDetail(true); }}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.98]"
+                    style={{ background: 'linear-gradient(135deg,#f97316,#ea580c)', boxShadow: '0 3px 10px rgba(249,115,22,0.35)' }}>
+                    <MessageCircle size={14} /> View Details &amp; Chat
+                  </button>
+                )}
+              </div>
             ) : (
-              <span className="flex-1 text-xs text-stone-400 font-medium">Posted by you</span>
+              <span className="text-xs text-stone-400 font-medium">Your trip</span>
             )}
 
             <div className="flex items-center gap-1.5 shrink-0">
@@ -237,6 +224,12 @@ https://app.kabutar.in`
           travelerSnap={traveler}
           onClose={() => setShowProfile(false)}
           onChat={() => { setShowProfile(false); authGate(() => navigate(`/chat/${traveler._id}`)); }}
+        />
+      )}
+      {showDetail && !isPast && (
+        <TripDetailModal
+          trip={trip}
+          onClose={() => setShowDetail(false)}
         />
       )}
     </>

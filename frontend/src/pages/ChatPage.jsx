@@ -5,7 +5,7 @@ import api from '../lib/api';
 import { getSocket, getRoomId } from '../lib/socket';
 import { ChevronLeft, Send, Star, IndianRupee, Check, X, ImageIcon, MoreVertical } from 'lucide-react';
 import ReportBlockSheet from '../components/ReportBlockSheet';
-import { format } from 'date-fns';
+import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import RatingModal from '../components/RatingModal';
 import KabutarLoader from '../components/KabutarLoader';
 import toast from 'react-hot-toast';
@@ -292,16 +292,36 @@ export default function ChatPage() {
         )}
 
         {messages.map((msg, i) => {
-          const mine     = isMine(msg);
-          const showTime = i === 0 || new Date(msg.timestamp) - new Date(messages[i-1].timestamp) > 5 * 60 * 1000;
-          const isOffer  = msg.type === 'offer';
-          const isImg    = msg.type === 'image' && msg.imageUrl;
+          const mine    = isMine(msg);
+          const msgDate = new Date(msg.timestamp);
+          const prevDate= i > 0 ? new Date(messages[i-1].timestamp) : null;
+          const isOffer = msg.type === 'offer';
+          const isImg   = msg.type === 'image' && msg.imageUrl;
+          const msgTime = format(msgDate, 'h:mm a');
+
+          // Show date separator when day changes
+          const showDateSep = i === 0 || !isSameDay(msgDate, prevDate);
+          const dateSepLabel = isToday(msgDate) ? 'Today'
+            : isYesterday(msgDate) ? 'Yesterday'
+            : format(msgDate, 'dd MMM yyyy');
+
+          // Show time bubble when gap > 5 min or different sender
+          const prevMine = i > 0 ? isMine(messages[i-1]) : null;
+          const showTimeBubble = i === 0
+            || showDateSep
+            || msgDate - prevDate > 5 * 60 * 1000
+            || prevMine !== mine;
 
           return (
             <div key={msg._id || i} className="animate-fade-in">
-              {showTime && (
-                <div className="text-center text-[11px] text-stone-400 my-2">
-                  {format(new Date(msg.timestamp), 'hh:mm a')}
+              {/* Date separator */}
+              {showDateSep && (
+                <div className="flex items-center gap-3 my-4">
+                  <div className="flex-1 h-px bg-stone-100" />
+                  <span className="text-[11px] font-semibold text-stone-400 bg-stone-50 px-3 py-1 rounded-full border border-stone-100 shrink-0">
+                    {dateSepLabel}
+                  </span>
+                  <div className="flex-1 h-px bg-stone-100" />
                 </div>
               )}
               <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
@@ -356,6 +376,18 @@ export default function ChatPage() {
                   </div>
                 )}
               </div>
+              {/* Timestamp + read status under message */}
+              {(showTimeBubble || i === messages.length - 1) && (
+                <div className={`flex items-center gap-1 mt-0.5 ${mine ? 'justify-end pr-1' : 'justify-start pl-1'}`}>
+                  <span className="text-[10px] text-stone-400">{msgTime}</span>
+                  {mine && !msg.sending && (
+                    <span className="text-[10px] text-stone-400 font-bold">✓✓</span>
+                  )}
+                  {mine && msg.sending && (
+                    <span className="text-[10px] text-stone-300">✓</span>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
