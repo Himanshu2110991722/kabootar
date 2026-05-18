@@ -58,38 +58,44 @@ export default function TripDetailModal({ trip, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-end bg-black/55 backdrop-blur-sm animate-fade-in"
+    <div className="fixed inset-0 z-[200] flex items-end bg-black/60 backdrop-blur-sm animate-fade-in"
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="w-full max-w-lg mx-auto bg-white rounded-t-3xl overflow-hidden animate-slide-up"
-        style={{ maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
+      <div className="w-full max-w-lg mx-auto bg-white rounded-t-3xl animate-slide-up"
+        style={{ maxHeight: '82vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* ── Header ── */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
+        {/* ── Drag handle + close — always visible at the very top ── */}
+        <div className="shrink-0 bg-white px-4 pt-3 pb-2">
+          {/* Drag handle pill */}
+          <div className="w-10 h-1 bg-stone-200 rounded-full mx-auto mb-3" />
+          {/* Header row */}
           <div className="flex items-center gap-2">
-            <span className={`text-[11px] font-black px-2.5 py-1 rounded-full border ${meta.color}`}>
-              {meta.emoji} {meta.label}
-            </span>
-            <span className="text-sm font-semibold text-stone-500">
-              {format(new Date(trip.date), 'EEE, dd MMM yyyy')}
-            </span>
-          </div>
-          <div className="flex items-center gap-1">
+            <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+              <span className={`text-[11px] font-black px-2.5 py-1 rounded-full border ${meta.color}`}>
+                {meta.emoji} {meta.label}
+              </span>
+              <span className="text-xs font-semibold text-stone-500">
+                {format(new Date(trip.date), 'dd MMM yyyy')}
+              </span>
+            </div>
             <button onClick={handleShare}
-              className="w-8 h-8 rounded-xl bg-stone-100 flex items-center justify-center text-stone-500 active:scale-90 transition-all">
-              <Share2 size={14} />
+              className="w-8 h-8 rounded-xl bg-stone-50 border border-stone-200 flex items-center justify-center text-stone-400 active:scale-90 transition-all shrink-0">
+              <Share2 size={13} />
             </button>
+            {/* Prominent close button */}
             <button onClick={onClose}
-              className="w-8 h-8 rounded-xl bg-stone-100 flex items-center justify-center text-stone-500 active:scale-90 transition-all">
-              <X size={16} />
+              className="w-8 h-8 rounded-xl bg-stone-800 flex items-center justify-center text-white active:scale-90 transition-all shrink-0"
+              style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
+              <X size={15} strokeWidth={2.5} />
             </button>
           </div>
         </div>
+        <div className="h-px bg-stone-100 shrink-0" />
 
         {/* ── Scrollable content ── */}
         <div className="flex-1 overflow-y-auto">
 
-          {/* Route visualization */}
-          <div className="px-5 py-4 bg-gradient-to-br from-orange-50 to-amber-50 border-y border-orange-100 mx-4 rounded-2xl mb-4">
+          {/* Route visualization — compact */}
+          <div className="px-4 py-3 bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-100 mx-4 mt-3 rounded-2xl mb-3">
             <div className="flex items-center gap-3">
               {/* Origin */}
               <div className="flex-1 min-w-0">
@@ -253,19 +259,21 @@ export default function TripDetailModal({ trip, onClose }) {
         </div>
 
         {/* ── Sticky CTA ── */}
-        {!isOwn && traveller && typeof traveller === 'object' && (
-          <div className="px-5 py-4 border-t border-stone-100 bg-white space-y-2 shrink-0">
+        <div className="px-4 py-3 border-t border-stone-100 bg-white shrink-0 space-y-2">
+          {!isOwn && traveller && typeof traveller === 'object' && (
             <button onClick={handleChat}
-              className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-white text-[15px] transition-all active:scale-[0.98]"
-              style={{ background: 'linear-gradient(135deg,#f97316,#ea580c)', boxShadow: '0 6px 20px rgba(249,115,22,0.4)' }}>
-              <MessageCircle size={18} />
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-black text-white text-sm transition-all active:scale-[0.98]"
+              style={{ background: 'linear-gradient(135deg,#f97316,#ea580c)', boxShadow: '0 4px 14px rgba(249,115,22,0.4)' }}>
+              <MessageCircle size={16} />
               Chat with {traveller.name?.split(' ')[0]}
             </button>
-            <p className="text-[11px] text-stone-400 text-center">
-              Negotiate price, confirm pickup details, and agree via in-app chat
-            </p>
-          </div>
-        )}
+          )}
+          {/* Always-visible close — user doesn't need to scroll up to dismiss */}
+          <button onClick={onClose}
+            className="w-full py-2.5 rounded-2xl bg-stone-100 text-stone-600 text-sm font-semibold active:scale-[0.98] transition-all">
+            Close
+          </button>
+        </div>
       </div>
     </div>
   );

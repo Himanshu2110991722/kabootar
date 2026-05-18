@@ -140,43 +140,47 @@ https://app.kabutar.in`
           </div>
         )}
 
-        {/* ── Row 4: Capacity & rate — human-readable ── */}
-        <div className="text-[11px] text-stone-600 mb-2.5">
-          <span className="font-medium text-stone-700">Can carry up to {trip.availableWeight} kg</span>
-          <span className="text-stone-400 mx-1">·</span>
-          <span>Charges ₹{trip.pricePerKg}/kg</span>
+        {/* ── Row 4: Capacity chips (compact) ── */}
+        <div className="flex items-center gap-1.5 mb-2.5 flex-wrap">
+          <span className="text-[11px] font-bold bg-stone-50 border border-stone-100 text-stone-600 px-2 py-0.5 rounded-lg">
+            📦 {trip.availableWeight} kg
+          </span>
+          <span className="text-[11px] font-bold bg-stone-50 border border-stone-100 text-stone-600 px-2 py-0.5 rounded-lg">
+            ₹{trip.pricePerKg}/kg
+          </span>
+          {(trip.pnrNumber || trip.trainNumber) && (
+            <span className="text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-100 px-1.5 py-0.5 rounded-lg">🎫 Ticket shared</span>
+          )}
+          {trip.flightNumber && (
+            <span className="text-[9px] font-bold bg-sky-50 text-sky-600 border border-sky-100 px-1.5 py-0.5 rounded-lg">✈️ {trip.flightNumber}</span>
+          )}
         </div>
 
-        {/* ── Row 5: Traveller + trust badges + "View details" CTA ── */}
+        {/* ── Row 5: Traveller row + compact CTAs ── */}
         {traveler && typeof traveler === 'object' && (
           <div className="pt-2.5 border-t border-stone-100">
             {!isOwn ? (
-              <div>
-                {/* Traveller row */}
-                <div className="flex items-center gap-2 mb-2.5">
-                  <Avatar user={traveler} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-xs font-bold text-stone-800 truncate">{traveler.name}</span>
-                      {isVerified && <CheckCircle size={10} className="text-emerald-500 fill-emerald-500 shrink-0" />}
-                      {trip.pnrNumber && <span className="text-[9px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded-full border border-blue-100">🎫 PNR</span>}
-                      {trip.flightNumber && <span className="text-[9px] bg-sky-50 text-sky-600 font-bold px-1.5 py-0.5 rounded-full border border-sky-100">✈️ {trip.flightNumber}</span>}
-                      {trip.trainNumber && <span className="text-[9px] bg-indigo-50 text-indigo-600 font-bold px-1.5 py-0.5 rounded-full border border-indigo-100">🚂 {trip.trainNumber}</span>}
-                    </div>
-                    <div className="flex items-center gap-1.5 text-[10px] text-stone-400 mt-0.5">
-                      <Star size={9} className="text-amber-400 fill-amber-400" />
-                      <span className="font-semibold">{traveler.rating?.toFixed(1)}</span>
-                      {traveler.tripsCompleted > 0 && <span>· {traveler.tripsCompleted} deliveries</span>}
-                    </div>
+              <div className="flex items-center gap-2">
+                {/* Traveller info */}
+                <Avatar user={traveler} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <span className="text-xs font-bold text-stone-800 truncate">{traveler.name}</span>
+                    {isVerified && <CheckCircle size={9} className="text-emerald-500 fill-emerald-500 shrink-0" />}
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] text-stone-400">
+                    <Star size={9} className="text-amber-400 fill-amber-400" />
+                    <span className="font-semibold">{traveler.rating?.toFixed(1)}</span>
+                    {traveler.tripsCompleted > 0 && <span>· {traveler.tripsCompleted} trips</span>}
                   </div>
                 </div>
-                {/* View details CTA */}
+                {/* Single "View Details" CTA — chat is inside the detail modal */}
                 {!isPast && (
                   <button
                     onClick={(e) => { e.stopPropagation(); setShowDetail(true); }}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.98]"
-                    style={{ background: 'linear-gradient(135deg,#f97316,#ea580c)', boxShadow: '0 3px 10px rgba(249,115,22,0.35)' }}>
-                    <MessageCircle size={14} /> View Details &amp; Chat
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-xs text-white active:scale-95 transition-all shrink-0"
+                    style={{ background: 'linear-gradient(135deg,#f97316,#ea580c)', boxShadow: '0 2px 8px rgba(249,115,22,0.3)' }}>
+                    View details →
                   </button>
                 )}
               </div>
