@@ -23,6 +23,18 @@ allprojects {
         google()
         mavenCentral()
     }
+
+}
+
+// JDK 17 is installed; capacitor-android declares sourceCompatibility = 21.
+// Force Java 17 across all subprojects after each is evaluated.
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            project.android.compileOptions.sourceCompatibility = JavaVersion.VERSION_17
+            project.android.compileOptions.targetCompatibility = JavaVersion.VERSION_17
+        }
+    }
 }
 
 task clean(type: Delete) {
