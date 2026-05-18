@@ -80,6 +80,24 @@ const io = new Server(httpServer, {
 // Connect DB
 connectDB();
 
+// ── Simple in-memory cache for expensive read-only endpoints ──────────────────
+// Prevents 100 users opening the app simultaneously from firing 100 MongoDB
+// aggregations. Trending/stats/explore are recalculated at most once per minute.
+const _cache = new Map();
+const withCache = (key, ttlMs, fn) => async (req, res) => {
+  const hit = _cache.get(key);
+  if (hit && Date.now() - hit.ts < ttlMs) return res.json(hit.data);
+  try {
+    const data = await fn(req);
+    _cache.set(key, { data, ts: Date.now() });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+// Export helper so route files can use it
+app._withCache = withCache;
+
 // Eagerly initialize Firebase Admin at startup (not lazily per-request)
 // Without this, notifications sent before the first /auth/verify call would silently fail
 try {
@@ -107,21 +125,33 @@ app.use(express.json({ limit: '1mb' }));
 // NoSQL injection prevention (runs after json() so req.body is defined)
 app.use(mongoSanitize());
 
-// General rate limit: 100 requests per 15 min per IP
+// General rate limit: raised to 300/15min — 100 was too strict for active app users
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: { message: 'Too many requests, please try again later.' },
+  max: 300,
+  message: { message: 'Too many requests, please try again shortly.' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => !!req.headers.authorization, // authenticated users get more headroom
 });
 app.use('/api/', generalLimiter);
 
-// Auth rate limit: 50 per hour (generous for dev/testing; tighten after launch)
+// Stricter limit for authenticated users only on write-heavy routes
+const writeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  message: { message: 'Slow down — too many requests.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/parcels', writeLimiter);
+app.use('/api/trips', writeLimiter);
+
+// Auth: tight on login, generous on /me reads
 const authLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 50,
-  message: { message: 'Too many login attempts, please try again in an hour.' },
+  max: 20,
+  message: { message: 'Too many login attempts — try again in an hour.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
