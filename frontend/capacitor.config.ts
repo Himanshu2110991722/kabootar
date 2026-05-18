@@ -4,12 +4,11 @@ const config: CapacitorConfig = {
   appId: 'in.kabutar.app',
   appName: 'Kabutar',
   webDir: 'dist',
-  // Make the Android WebView serve assets under https://app.kabutar.in.
-  // Firebase's reCAPTCHA (used by JS SDK phone auth) requires a trusted, authorized
-  // domain — localhost scores poorly and SMS is blocked for real numbers.
-  // app.kabutar.in is already in Firebase Console authorized domains.
+  // Android WebView serves assets under https://kabutar.in so Firebase OTP
+  // and Google sign-in work. Ensure kabutar.in is listed in:
+  // Firebase Console → Authentication → Settings → Authorized domains.
   server: {
-    hostname: 'app.kabutar.in',
+    hostname: 'kabutar.in',
     androidScheme: 'https',
   },
   android: {

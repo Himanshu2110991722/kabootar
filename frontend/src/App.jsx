@@ -33,11 +33,11 @@ const PublicOnlyRoute = ({ children }) => {
   return !user ? children : <Navigate to="/app" replace />;
 };
 
-// Smart gate at "/": landing page for guests, redirect to /app for logged-in users
+// Smart gate at "/":
+//   - Native APK (Capacitor): skip marketing page, go straight to the app
+//   - Web browser: always show the landing page regardless of login state
 function LandingGate() {
-  const { user, loading } = useAuth();
-  if (loading) return <div style={{ minHeight: '100vh' }} />;
-  if (user) return <Navigate to="/app" replace />;
+  if (Capacitor.isNativePlatform()) return <Navigate to="/app" replace />;
   return <LandingPage />;
 }
 
