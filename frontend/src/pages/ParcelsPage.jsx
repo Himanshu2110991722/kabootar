@@ -133,18 +133,21 @@ export default function ParcelsPage() {
       </div>
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      {/* ── Compact header ── */}
+      <div className="flex items-center justify-between mb-3">
         <div>
-          <h1 className="text-xl font-bold text-stone-900">Parcels</h1>
+          <h1 className="text-lg font-bold text-stone-900">Parcels</h1>
           {fetchedAt && !loading && <LiveBadge time={fetchedAt} />}
         </div>
-        <button onClick={() => authGate(() => setShowModal(true))} className="btn-primary flex items-center gap-1.5">
-          <Plus size={15} /> Send Parcel
+        <button onClick={() => authGate(() => setShowModal(true))}
+          className="flex items-center gap-1 text-xs font-bold text-white px-3 py-2 rounded-xl active:scale-95 transition-all"
+          style={{ background: 'linear-gradient(135deg,#3b82f6,#2563eb)', boxShadow: '0 2px 8px rgba(59,130,246,0.3)' }}>
+          <Plus size={13} /> Send Parcel
         </button>
       </div>
 
-      {/* Location filter bar */}
-      <div className="mb-3">
+      {/* Location filter chips — compact */}
+      <div className="mb-2.5">
         <LocationFilterBar
           activeFilter={activeFilter}
           onFilter={setActiveFilter}
@@ -157,32 +160,32 @@ export default function ParcelsPage() {
         />
       </div>
 
-      {/* Compact route search */}
-      <div className="flex gap-2 mb-4">
-        <input className="input-field flex-1 text-sm" placeholder="From city" value={search.from}
+      {/* Search row — compact */}
+      <div className="flex gap-1.5 mb-3">
+        <input className="input-field flex-1 text-xs py-2" placeholder="From" value={search.from}
           onChange={e => setSearch(s => ({ ...s, from: e.target.value }))}
           onKeyDown={e => e.key === 'Enter' && fetchParcels()} />
-        <input className="input-field flex-1 text-sm" placeholder="To city" value={search.to}
+        <input className="input-field flex-1 text-xs py-2" placeholder="To" value={search.to}
           onChange={e => setSearch(s => ({ ...s, to: e.target.value }))}
           onKeyDown={e => e.key === 'Enter' && fetchParcels()} />
-        <button onClick={fetchParcels} className="btn-primary px-3 py-2.5 shrink-0">
-          <Search size={15} />
+        <button onClick={fetchParcels} className="bg-orange-500 text-white px-3 py-2 rounded-xl shrink-0 active:scale-95 transition-all">
+          <Search size={14} />
         </button>
         {(search.from || search.to) && (
-          <button onClick={() => setSearch({ from: '', to: '' })} className="btn-ghost px-2.5 text-stone-400 shrink-0">
-            <X size={15} />
+          <button onClick={() => setSearch({ from: '', to: '' })} className="px-2.5 py-2 rounded-xl bg-stone-100 text-stone-400 shrink-0 active:scale-95 transition-all">
+            <X size={14} />
           </button>
         )}
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-stone-100 rounded-xl p-1 mb-4">
+      {/* Tabs — compact */}
+      <div className="flex gap-1 bg-stone-100 rounded-xl p-0.5 mb-3">
         <button onClick={() => setTab('all')}
-          className={`flex-1 py-1.5 rounded-lg text-sm font-semibold transition-all ${tab === 'all' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
+          className={`flex-1 py-1.5 rounded-[10px] text-xs font-semibold transition-all ${tab === 'all' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
           All Requests
         </button>
         <button onClick={() => authGate(() => setTab('mine'))}
-          className={`flex-1 py-1.5 rounded-lg text-sm font-semibold transition-all ${tab === 'mine' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
+          className={`flex-1 py-1.5 rounded-[10px] text-xs font-semibold transition-all ${tab === 'mine' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
           My Requests
         </button>
       </div>

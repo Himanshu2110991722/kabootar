@@ -174,13 +174,13 @@ https://app.kabutar.in`
                     {traveler.tripsCompleted > 0 && <span>· {traveler.tripsCompleted} trips</span>}
                   </div>
                 </div>
-                {/* Single "View Details" CTA — chat is inside the detail modal */}
+                {/* Single CTA — fits on one line with traveller name */}
                 {!isPast && (
                   <button
                     onClick={(e) => { e.stopPropagation(); setShowDetail(true); }}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-xs text-white active:scale-95 transition-all shrink-0"
-                    style={{ background: 'linear-gradient(135deg,#f97316,#ea580c)', boxShadow: '0 2px 8px rgba(249,115,22,0.3)' }}>
-                    View details →
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl font-bold text-[11px] text-white active:scale-95 transition-all shrink-0 whitespace-nowrap"
+                    style={{ background: 'linear-gradient(135deg,#f97316,#ea580c)', boxShadow: '0 2px 6px rgba(249,115,22,0.3)' }}>
+                    View →
                   </button>
                 )}
               </div>

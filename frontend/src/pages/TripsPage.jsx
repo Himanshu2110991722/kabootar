@@ -185,18 +185,21 @@ export default function TripsPage() {
       </div>
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      {/* ── Compact header ── */}
+      <div className="flex items-center justify-between mb-3">
         <div>
-          <h1 className="text-xl font-bold text-stone-900">Travellers</h1>
+          <h1 className="text-lg font-bold text-stone-900">Travellers</h1>
           {fetchedAt && !loading && <LiveBadge time={fetchedAt} />}
         </div>
-        <button onClick={openPostTripModal} className="btn-primary flex items-center gap-1.5">
-          <Plus size={15} /> Post Trip
+        <button onClick={openPostTripModal}
+          className="flex items-center gap-1 text-xs font-bold text-white px-3 py-2 rounded-xl active:scale-95 transition-all"
+          style={{ background: 'linear-gradient(135deg,#f97316,#ea580c)', boxShadow: '0 2px 8px rgba(249,115,22,0.3)' }}>
+          <Plus size={13} /> Post Trip
         </button>
       </div>
 
-      {/* Location filter bar */}
-      <div className="mb-3">
+      {/* Location filter chips — compact */}
+      <div className="mb-2.5">
         <LocationFilterBar
           activeFilter={activeFilter}
           onFilter={setActiveFilter}
@@ -209,51 +212,50 @@ export default function TripsPage() {
         />
       </div>
 
-      {/* Compact search bar */}
-      <div className="space-y-2 mb-4">
-        <div className="flex gap-2">
-          <input className="input-field flex-1 text-sm" placeholder="From city" value={search.from}
+      {/* Search row — From | To | Date | Search — all in one line */}
+      <div className="mb-3 space-y-1.5">
+        <div className="flex gap-1.5">
+          <input className="input-field flex-1 text-xs py-2" placeholder="From" value={search.from}
             onChange={e => setSearch(s => ({ ...s, from: e.target.value }))}
             onKeyDown={e => e.key === 'Enter' && fetchTrips()} />
-          <input className="input-field flex-1 text-sm" placeholder="To city" value={search.to}
+          <input className="input-field flex-1 text-xs py-2" placeholder="To" value={search.to}
             onChange={e => setSearch(s => ({ ...s, to: e.target.value }))}
             onKeyDown={e => e.key === 'Enter' && fetchTrips()} />
-          <button onClick={fetchTrips} className="btn-primary px-3 py-2.5 shrink-0">
-            <Search size={15} />
+          <div className="relative shrink-0">
+            <Calendar size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
+            <input type="date" className="input-field pl-6 text-xs py-2 w-28" min={today} value={search.date}
+              onChange={e => setSearch(s => ({ ...s, date: e.target.value }))} />
+          </div>
+          <button onClick={fetchTrips} className="bg-orange-500 text-white px-3 py-2 rounded-xl shrink-0 active:scale-95 transition-all">
+            <Search size={14} />
           </button>
           {activeFilters.length > 0 && (
-            <button onClick={clearAll} className="btn-ghost px-2.5 py-2.5 text-stone-400 shrink-0">
-              <X size={15} />
+            <button onClick={clearAll} className="px-2.5 py-2 rounded-xl bg-stone-100 text-stone-400 shrink-0 active:scale-95 transition-all">
+              <X size={14} />
             </button>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
-            <input type="date" className="input-field pl-7 text-xs py-2" min={today} value={search.date}
-              onChange={e => setSearch(s => ({ ...s, date: e.target.value }))} />
+        {/* Active filter chips */}
+        {activeFilters.length > 0 && (
+          <div className="flex gap-1.5 flex-wrap">
+            {activeFilters.map(f => (
+              <button key={f.key} onClick={() => clearFilter(f.key)}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-50 text-orange-600 border border-orange-200">
+                {f.label} <X size={8} />
+              </button>
+            ))}
           </div>
-          {activeFilters.length > 0 && (
-            <div className="flex gap-1.5 flex-wrap flex-1">
-              {activeFilters.map(f => (
-                <button key={f.key} onClick={() => clearFilter(f.key)}
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-orange-50 text-orange-600 border border-orange-200">
-                  {f.label} <X size={9} />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-stone-100 rounded-xl p-1 mb-4">
+      {/* Tabs — compact */}
+      <div className="flex gap-1 bg-stone-100 rounded-xl p-0.5 mb-3">
         <button onClick={() => setTab('all')}
-          className={`flex-1 py-1.5 rounded-lg text-sm font-semibold transition-all ${tab === 'all' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
+          className={`flex-1 py-1.5 rounded-[10px] text-xs font-semibold transition-all ${tab === 'all' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
           All Travellers
         </button>
         <button onClick={() => authGate(() => setTab('mine'))}
-          className={`flex-1 py-1.5 rounded-lg text-sm font-semibold transition-all ${tab === 'mine' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
+          className={`flex-1 py-1.5 rounded-[10px] text-xs font-semibold transition-all ${tab === 'mine' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
           My Trips
         </button>
       </div>

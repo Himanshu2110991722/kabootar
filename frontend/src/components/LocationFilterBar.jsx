@@ -47,15 +47,15 @@ export default function LocationFilterBar({
           return (
             <button key={id}
               onClick={() => id === 'nearby' ? handleNearMe() : onFilter(id)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold shrink-0 transition-all active:scale-95 ${
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition-all active:scale-95 ${
                 active
                   ? 'bg-orange-500 text-white shadow-sm'
                   : 'bg-white border border-stone-200 text-stone-600 hover:border-orange-300 hover:text-orange-600'
               }`}
             >
               {loading
-                ? <Loader size={12} className="animate-spin" />
-                : <Icon size={13} />}
+                ? <Loader size={11} className="animate-spin" />
+                : <Icon size={11} />}
               {label}
               {active && id !== 'all' && <span className="w-1.5 h-1.5 rounded-full bg-white/70 ml-0.5" />}
             </button>
