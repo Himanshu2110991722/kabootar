@@ -106,7 +106,10 @@ function AppRoutes() {
 }
 
 export default function App() {
+  const isNative = Capacitor.isNativePlatform();
+
   const [splashDone, setSplashDone] = useState(() => {
+    if (!isNative) return true; // web browser: skip splash entirely
     if (import.meta.env.DEV) {
       if (sessionStorage.getItem('kabutar_splash_shown')) return true;
       sessionStorage.setItem('kabutar_splash_shown', '1');
@@ -114,9 +117,9 @@ export default function App() {
     return false;
   });
 
-  // Show onboarding once on very first launch
+  // Show onboarding once on very first launch (APK only)
   const [onboardingDone, setOnboardingDone] = useState(
-    () => !!localStorage.getItem('kabutar_onboarded')
+    () => !isNative || !!localStorage.getItem('kabutar_onboarded')
   );
 
   return (
