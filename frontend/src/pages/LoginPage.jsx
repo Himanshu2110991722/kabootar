@@ -12,7 +12,7 @@ import { Capacitor } from '@capacitor/core';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Phone, ArrowRight, ChevronLeft, Shield, RotateCcw } from 'lucide-react';
+import { ArrowRight, ChevronLeft, Shield, RotateCcw, Edit2, Phone } from 'lucide-react';
 import LegalModal from '../components/LegalModal';
 
 const isNativeApp = Capacitor.isNativePlatform();
@@ -21,7 +21,7 @@ const RESEND_SECS = 30;
 
 export default function LoginPage() {
   const [step, setStep]             = useState(STEPS.HOME);
-  const [legalModal, setLegalModal] = useState(null); // 'terms' | 'privacy' | null
+  const [legalModal, setLegalModal] = useState(null);
   const [phone, setPhone]           = useState('');
   const [otp, setOtp]               = useState(['', '', '', '', '', '']);
   const [name, setName]             = useState('');
@@ -29,18 +29,16 @@ export default function LoginPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [idToken, setIdToken]       = useState(null);
   const [resendTimer, setResendTimer] = useState(0);
-  const [otpStatus,   setOtpStatus]   = useState(''); // status while sending
-
-  // Android native: stores verificationId string from @capacitor-firebase/authentication
+  const [otpSending, setOtpSending] = useState(false);
   const [verificationId, setVerificationId] = useState(null);
   const [confirmResult,  setConfirmResult]  = useState(null);
-  const [otpSending,     setOtpSending]     = useState(false); // true while SMS is in flight
 
-  const otpRefs  = useRef([]);
-  const timerRef = useRef(null);
-  const { login } = useAuth();
-  const navigate  = useNavigate();
-  const location  = useLocation();
+  const otpRefs     = useRef([]);
+  const timerRef    = useRef(null);
+  const cancelledRef = useRef(false); // prevents stale callbacks from updating state after "change number"
+  const { login }   = useAuth();
+  const navigate    = useNavigate();
+  const location    = useLocation();
 
   useEffect(() => () => clearInterval(timerRef.current), []);
 
@@ -66,7 +64,30 @@ export default function LoginPage() {
     } catch { toast.error('Cannot reach server. Check internet.'); }
   };
 
-  // ── Google ──────────────────────────────────────────────────────────────────
+  // ── Back navigation — goes PHONE→HOME, OTP→PHONE ──────────────────────────
+  const handleBack = () => {
+    cancelledRef.current = true; // silence any in-flight callbacks
+    clearInterval(timerRef.current);
+    if (step === STEPS.OTP) {
+      setOtp(['', '', '', '', '', '']);
+      setVerificationId(null);
+      setConfirmResult(null);
+      setLoading(false);
+      setOtpSending(false);
+      setResendTimer(0);
+      setStep(STEPS.PHONE);
+      // reset cancelled flag after transition so next send works
+      setTimeout(() => { cancelledRef.current = false; }, 300);
+    } else {
+      setStep(STEPS.HOME);
+      setPhone('');
+      setLoading(false);
+      setOtpSending(false);
+      setTimeout(() => { cancelledRef.current = false; }, 300);
+    }
+  };
+
+  // ── Google ─────────────────────────────────────────────────────────────────
   const signInWithGoogle = async () => {
     setGoogleLoading(true);
     try {
@@ -90,46 +111,42 @@ export default function LoginPage() {
       }
     } catch (err) {
       const cancelled = err.code === 'auth/popup-closed-by-user' || err.message === 'User cancelled.';
-      if (!cancelled) toast.error(`Google: ${err.code || err.message || 'failed'}`);
+      if (!cancelled) toast.error(`Google sign-in: ${err.code || err.message || 'failed'}`);
     } finally { setGoogleLoading(false); }
   };
 
-  // ── Phone OTP — Firebase native plugin (Android) / JS SDK (web) ─────────────
+  // ── Phone OTP ──────────────────────────────────────────────────────────────
   const fullPhone = phone.startsWith('+') ? phone : `+91${phone}`;
 
   const sendOtp = async () => {
     if (fullPhone.replace(/\D/g, '').length < 12) {
       toast.error('Enter a valid 10-digit mobile number'); return;
     }
+    cancelledRef.current = false;
     setLoading(true);
     setOtpSending(true);
 
     if (isNativeApp) {
-      // Android: native Firebase plugin.
-      // MainActivity.java calls setAppVerificationDisabledForTesting(true) via
-      // reflection so the native SDK skips SafetyNet and sends SMS directly —
-      // no browser, no reCAPTCHA, works on both debug and release APKs.
       let codeSentHandle = null, autoHandle = null, failedHandle = null;
-      const cleanup = () => {
-        codeSentHandle?.remove?.();
-        autoHandle?.remove?.();
-        failedHandle?.remove?.();
-      };
+      const cleanup = () => { codeSentHandle?.remove?.(); autoHandle?.remove?.(); failedHandle?.remove?.(); };
       try {
         const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
 
         codeSentHandle = await FirebaseAuthentication.addListener('phoneCodeSent', (ev) => {
           cleanup();
+          if (cancelledRef.current) return;
           setVerificationId(ev.verificationId);
           setOtpSending(false);
           setLoading(false);
           setStep(STEPS.OTP);
           startResendTimer();
+          setTimeout(() => otpRefs.current[0]?.focus(), 200);
         });
 
         autoHandle = await FirebaseAuthentication.addListener('phoneVerificationCompleted', (ev) => {
           if (ev.verificationCode && ev.verificationId) {
             cleanup();
+            if (cancelledRef.current) return;
             setVerificationId(ev.verificationId);
             setOtp(ev.verificationCode.split(''));
             setOtpSending(false);
@@ -141,6 +158,7 @@ export default function LoginPage() {
 
         failedHandle = await FirebaseAuthentication.addListener('phoneVerificationFailed', (ev) => {
           cleanup();
+          if (cancelledRef.current) return;
           setOtpSending(false);
           setLoading(false);
           toast.error(ev.message || 'Could not send OTP — try again');
@@ -149,6 +167,7 @@ export default function LoginPage() {
         await FirebaseAuthentication.signInWithPhoneNumber({ phoneNumber: fullPhone, timeout: 60 });
       } catch (err) {
         cleanup();
+        if (cancelledRef.current) return;
         setOtpSending(false);
         setLoading(false);
         toast.error(err.code || err.message || 'OTP failed');
@@ -156,25 +175,28 @@ export default function LoginPage() {
       return;
     }
 
-    // Web: invisible reCAPTCHA via JS SDK
+    // Web: invisible reCAPTCHA
     try {
       try { window.recaptchaVerifier?.clear?.(); } catch {}
       window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
       const result = await signInWithPhoneNumber(auth, fullPhone, window.recaptchaVerifier);
+      if (cancelledRef.current) return;
       setConfirmResult(result);
       setOtpSending(false);
       setStep(STEPS.OTP);
       startResendTimer();
+      setTimeout(() => otpRefs.current[0]?.focus(), 200);
     } catch (err) {
       try { window.recaptchaVerifier?.clear?.(); } catch {}
       window.recaptchaVerifier = null;
+      if (cancelledRef.current) return;
       setOtpSending(false);
       const msg =
         err.code === 'auth/invalid-phone-number' ? 'Invalid phone number.' :
         err.code === 'auth/too-many-requests'     ? 'Too many attempts — try later.' :
         `OTP error: ${err.code || err.message}`;
       toast.error(msg);
-    } finally { setLoading(false); }
+    } finally { if (!cancelledRef.current) setLoading(false); }
   };
 
   const verifyNative = async (vid, code) => {
@@ -246,158 +268,239 @@ export default function LoginPage() {
     else toast.error(res.message || 'Try again.');
   };
 
-  // ── HOME ────────────────────────────────────────────────────────────────────
+  // ── HOME screen ─────────────────────────────────────────────────────────────
   if (step === STEPS.HOME) {
     return (
       <div className="min-h-screen flex flex-col"
-        style={{ background: 'linear-gradient(160deg, #f97316 0%, #ea580c 55%, #9a3412 100%)' }}>
+        style={{ background: 'linear-gradient(160deg, #f97316 0%, #ea580c 50%, #9a3412 100%)' }}>
+        {/* Decorative circles */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-20 -right-12 w-56 h-56 rounded-full bg-white/10" />
-          <div className="absolute top-1/3 -left-16 w-40 h-40 rounded-full bg-white/8" />
+          <div className="absolute -top-24 -right-16 w-64 h-64 rounded-full bg-white/10" />
+          <div className="absolute top-1/3 -left-20 w-48 h-48 rounded-full bg-white/8" />
+          <div className="absolute bottom-1/4 right-0 w-32 h-32 rounded-full bg-white/6" />
         </div>
-        <div className="flex-1 flex flex-col items-center justify-center px-8 relative z-10 pt-16">
-          <div className="w-28 h-28 rounded-3xl overflow-hidden shadow-2xl mb-6 border-4 border-white/20">
+
+        {/* Brand block */}
+        <div className="flex-1 flex flex-col items-center justify-center px-8 relative z-10 pt-16 pb-4">
+          <div className="w-24 h-24 rounded-3xl overflow-hidden shadow-2xl mb-5 border-4 border-white/25 bg-white/15 flex items-center justify-center">
             <img src="/logo.png" alt="Kabutar" className="w-full h-full object-cover"
-              onError={e => { e.target.style.display='none'; e.target.parentElement.innerHTML='<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:56px;background:rgba(255,255,255,0.15)">🕊️</div>'; }}
-            />
+              onError={e => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = '<span style="font-size:52px">🕊️</span>'; }} />
           </div>
-          <h1 className="text-4xl font-black text-white tracking-tight mb-2">kabutar</h1>
-          <p className="text-orange-100 text-center text-sm font-medium leading-relaxed max-w-xs">
-            Same route. Shared journey.
+          <h1 className="text-4xl font-black text-white tracking-tight mb-1.5">kabutar</h1>
+          <p className="text-orange-100 text-center text-sm font-medium leading-relaxed max-w-[260px]">
+            Travel together · Deliver together
           </p>
-          <div className="flex gap-2 mt-8 flex-wrap justify-center">
+
+          {/* Trust pills */}
+          <div className="flex gap-2 mt-6 flex-wrap justify-center">
             {['✅ OTP Verified', '⭐ Trust Ratings', '🔐 KYC Secured'].map(t => (
-              <span key={t} className="bg-white/15 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full">{t}</span>
+              <span key={t} className="bg-white/15 backdrop-blur-sm text-white text-[11px] font-semibold px-3 py-1.5 rounded-full border border-white/20">
+                {t}
+              </span>
             ))}
           </div>
         </div>
-        <div className="relative z-10 px-5 pb-10 pt-6"
-          style={{ background: 'linear-gradient(to top, rgba(154,52,18,0.95) 0%, transparent 100%)' }}>
+
+        {/* Action sheet */}
+        <div className="relative z-10 mx-4 mb-8 bg-white/12 backdrop-blur-md rounded-3xl border border-white/20 p-4 space-y-2.5">
           <button onClick={signInWithGoogle} disabled={googleLoading}
-            className="w-full flex items-center justify-center gap-3 bg-white rounded-2xl py-4 mb-3 font-semibold text-stone-800 text-sm shadow-lg active:scale-95 transition-all disabled:opacity-70">
-            {googleLoading ? <Spinner /> : <><GoogleIcon /> Continue with Google</>}
+            className="w-full flex items-center justify-center gap-3 bg-white rounded-2xl py-3.5 font-semibold text-stone-800 text-sm shadow-md active:scale-[0.98] transition-all disabled:opacity-70">
+            {googleLoading ? <Spinner dark /> : <><GoogleIcon /><span>Continue with Google</span></>}
           </button>
-          <button onClick={() => setStep(STEPS.PHONE)}
-            className="w-full flex items-center justify-center gap-3 bg-white/15 border border-white/25 rounded-2xl py-4 font-semibold text-white text-sm active:scale-95 transition-all backdrop-blur-sm">
-            <Phone size={17} /> Continue with Phone
+          <button onClick={() => { setStep(STEPS.PHONE); setPhone(''); }}
+            className="w-full flex items-center justify-center gap-3 bg-white/20 border border-white/30 rounded-2xl py-3.5 font-semibold text-white text-sm active:scale-[0.98] transition-all">
+            <Phone size={16} /> Continue with Phone
           </button>
-          <p className="text-center text-white/50 text-[11px] mt-5">
-            By continuing, you agree to our{' '}
-            <button onClick={() => setLegalModal('terms')} className="underline text-white/70">Terms</button>
+          <p className="text-center text-white/45 text-[11px] pt-1">
+            By continuing you agree to our{' '}
+            <button onClick={() => setLegalModal('terms')} className="underline text-white/65">Terms</button>
             {' '}&amp;{' '}
-            <button onClick={() => setLegalModal('privacy')} className="underline text-white/70">Privacy Policy</button>
+            <button onClick={() => setLegalModal('privacy')} className="underline text-white/65">Privacy Policy</button>
           </p>
-          {legalModal && <LegalModal type={legalModal} onClose={() => setLegalModal(null)} />}
         </div>
+        {legalModal && <LegalModal type={legalModal} onClose={() => setLegalModal(null)} />}
       </div>
     );
   }
 
-  // ── PHONE / OTP / NAME ──────────────────────────────────────────────────────
+  // ── PHONE / OTP / NAME screens ───────────────────────────────────────────────
+  const stepLabel  = step === STEPS.PHONE ? 'Enter Number' : step === STEPS.OTP ? 'Verify OTP' : 'Your Name';
+  const stepNumber = step === STEPS.PHONE ? 1 : step === STEPS.OTP ? 2 : 3;
+
   return (
-    <div className="min-h-screen bg-stone-50 flex flex-col">
-      <div className="bg-gradient-to-br from-orange-500 to-orange-600 px-5 pt-12 pb-8">
-        <div className="flex items-center gap-3 mb-4">
-          <button onClick={() => { setStep(STEPS.HOME); clearInterval(timerRef.current); }}
-            className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-white">
-            <ChevronLeft size={18} />
+    <div className="min-h-screen flex flex-col bg-stone-50">
+
+      {/* Orange header */}
+      <div style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' }}
+        className="px-5 pt-14 pb-8 relative overflow-hidden">
+        {/* Decorative circle */}
+        <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/10 pointer-events-none" />
+
+        {/* Back button + logo */}
+        <div className="flex items-center gap-3 mb-6 relative z-10">
+          <button onClick={handleBack}
+            className="w-9 h-9 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white transition-all active:scale-90">
+            <ChevronLeft size={20} strokeWidth={2.5} />
           </button>
-          <div className="flex items-center gap-2">
-            <span className="text-white text-lg">🕊️</span>
-            <span className="font-bold text-white text-lg">kabutar</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-white text-base">🕊️</span>
+            <span className="font-black text-white text-base tracking-tight">kabutar</span>
+          </div>
+          {/* Step indicator pills */}
+          <div className="ml-auto flex items-center gap-1.5">
+            {[1, 2].map(n => (
+              <div key={n} className={`rounded-full transition-all duration-300 ${
+                n === stepNumber
+                  ? 'w-5 h-2 bg-white'
+                  : n < stepNumber
+                    ? 'w-2 h-2 bg-white/70'
+                    : 'w-2 h-2 bg-white/30'
+              }`} />
+            ))}
           </div>
         </div>
-        <h2 className="text-2xl font-bold text-white">
-          {step === STEPS.PHONE ? 'Your number' : step === STEPS.OTP ? 'Enter OTP' : 'Your name'}
-        </h2>
-        <p className="text-orange-100 text-sm mt-1 flex items-center gap-1.5">
-          {step === STEPS.PHONE ? "We'll send a one-time SMS to verify" :
-           step === STEPS.OTP   ? (<>Code sent to +91 {phone} <span className="text-emerald-300 font-bold">✓</span></>) :
-           'Help others know who you are'}
-        </p>
+
+        {/* Step title */}
+        <div className="relative z-10">
+          <p className="text-orange-200 text-xs font-semibold uppercase tracking-wider mb-1">
+            Step {Math.min(stepNumber, 2)} of 2
+          </p>
+          <h2 className="text-2xl font-black text-white">{stepLabel}</h2>
+          <p className="text-orange-100/80 text-sm mt-1 leading-relaxed">
+            {step === STEPS.PHONE && "We'll send a 6-digit verification code"}
+            {step === STEPS.OTP   && (
+              <span className="flex items-center gap-1.5 flex-wrap">
+                Code sent to{' '}
+                <span className="font-bold text-white">+91 {phone}</span>
+                {/* Inline change number — always visible */}
+                <button onClick={handleBack}
+                  className="flex items-center gap-0.5 text-orange-200 hover:text-white text-xs font-semibold underline underline-offset-2 transition-colors">
+                  <Edit2 size={11} /> Change
+                </button>
+              </span>
+            )}
+            {step === STEPS.NAME && 'Help others know who you are'}
+          </p>
+        </div>
       </div>
 
-      <div className="flex-1 px-5 pt-6 space-y-4">
+      {/* Form area */}
+      <div className="flex-1 px-5 pt-6 pb-8 space-y-4">
+        <div id="recaptcha-container" />
 
-        {/* PHONE */}
+        {/* ── PHONE STEP ── */}
         {step === STEPS.PHONE && (
           <>
-            <div id="recaptcha-container" />
-            <div className="flex gap-2">
-              <div className="w-16 bg-white border border-stone-200 rounded-xl flex items-center justify-center text-stone-600 font-semibold text-sm shadow-sm shrink-0">+91</div>
-              <input className="input-field flex-1 text-lg font-semibold tracking-widest"
-                placeholder="98765 43210" value={phone}
+            <div className="flex gap-2.5 items-stretch">
+              <div className="shrink-0 bg-white border border-stone-200 rounded-2xl flex items-center justify-center px-3.5 shadow-sm">
+                <span className="text-stone-600 font-bold text-sm">🇮🇳 +91</span>
+              </div>
+              <input
+                className="flex-1 bg-white border border-stone-200 rounded-2xl px-4 py-3.5 text-xl font-bold tracking-[0.15em] text-stone-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 transition-all placeholder:text-stone-300 placeholder:font-normal placeholder:tracking-normal shadow-sm"
+                placeholder="98765 43210"
+                value={phone}
                 onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                onKeyDown={e => e.key === 'Enter' && sendOtp()}
-                type="tel" inputMode="numeric" autoFocus maxLength={10} />
+                onKeyDown={e => e.key === 'Enter' && phone.length === 10 && sendOtp()}
+                type="tel" inputMode="numeric" autoFocus maxLength={10}
+              />
             </div>
-            <button className="btn-primary w-full flex items-center justify-center gap-2 py-4 text-base rounded-2xl"
-              onClick={sendOtp} disabled={loading || phone.length < 10}>
+
+            {/* Character count hint */}
+            <p className={`text-xs text-right font-medium transition-colors ${phone.length === 10 ? 'text-emerald-500' : 'text-stone-400'}`}>
+              {phone.length}/10
+            </p>
+
+            <button
+              onClick={sendOtp}
+              disabled={loading || phone.length < 10}
+              className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl font-bold text-base text-white transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ background: phone.length === 10 ? 'linear-gradient(135deg,#f97316,#ea580c)' : '#d1d5db', boxShadow: phone.length === 10 ? '0 6px 20px rgba(249,115,22,0.4)' : 'none' }}>
               {otpSending ? (
                 <>
                   <Spinner />
                   <span>Sending OTP</span>
-                  <span className="flex gap-0.5 items-end pb-0.5">
-                    {[0,1,2].map(i => (
-                      <span key={i} className="w-1 h-1 rounded-full bg-white inline-block"
-                        style={{ animation: `bounce 0.9s ease-in-out ${i*0.2}s infinite` }} />
-                    ))}
-                  </span>
+                  <SendingDots />
                 </>
-              ) : loading ? <Spinner /> : <><span>Get OTP</span><ArrowRight size={17} /></>}
+              ) : loading ? <Spinner /> : (
+                <><span>Get OTP</span><ArrowRight size={18} /></>
+              )}
             </button>
+
+            {/* Cancel during send — visible immediately when sending */}
+            {otpSending && (
+              <button onClick={handleBack}
+                className="w-full py-3 text-sm text-stone-400 hover:text-orange-500 font-medium transition-colors text-center">
+                ← Wrong number? Tap to go back
+              </button>
+            )}
           </>
         )}
 
-        {/* OTP */}
+        {/* ── OTP STEP ── */}
         {step === STEPS.OTP && (
           <>
-            <p className="text-xs text-stone-400 text-center">
-              {loading ? 'Verifying…' : 'Auto-fills from SMS · or enter manually'}
+            <p className="text-xs text-stone-400 text-center font-medium">
+              {loading ? 'Verifying your code…' : 'Auto-fills from SMS · or enter below'}
             </p>
 
+            {/* 6-digit boxes */}
             <div className="flex gap-2 justify-center">
               {otp.map((d, i) => (
-                <input key={i} ref={el => (otpRefs.current[i] = el)}
-                  className={`w-10 h-12 shrink-0 text-center font-bold border-2 rounded-xl outline-none transition-all bg-white text-xl
-                    ${d ? 'border-orange-400 bg-orange-50 text-orange-600' : 'border-stone-200 text-stone-900'}
-                    ${loading ? 'opacity-50 pointer-events-none' : 'focus:border-orange-400 focus:ring-2 focus:ring-orange-100'}`}
+                <input key={i}
+                  ref={el => (otpRefs.current[i] = el)}
+                  className={`w-11 h-13 shrink-0 text-center font-black text-xl border-2 rounded-2xl outline-none transition-all bg-white
+                    ${loading ? 'opacity-40 pointer-events-none' : ''}
+                    ${d
+                      ? 'border-orange-400 bg-orange-50 text-orange-600 shadow-sm shadow-orange-100'
+                      : 'border-stone-200 text-stone-900 focus:border-orange-400 focus:ring-2 focus:ring-orange-100'
+                    }`}
+                  style={{ height: 52 }}
                   value={d}
                   onChange={e => handleOtpChange(e.target.value, i)}
                   onKeyDown={e => handleOtpKey(e, i)}
                   inputMode="numeric" maxLength={1}
                   autoComplete={i === 0 ? 'one-time-code' : 'off'}
-                  autoFocus={i === 0} disabled={loading}
+                  autoFocus={i === 0}
+                  disabled={loading}
                 />
               ))}
             </div>
 
+            {/* Verify or verifying state */}
             {loading ? (
-              <div className="flex items-center justify-center gap-2 py-2">
-                <Spinner />
-                <span className="text-sm text-stone-500 font-medium">Verifying…</span>
+              <div className="flex flex-col items-center gap-2 py-3">
+                <div className="flex items-center gap-2">
+                  <Spinner />
+                  <span className="text-sm text-stone-500 font-medium">Verifying your OTP…</span>
+                </div>
               </div>
             ) : (
               <>
-                <button className="btn-primary w-full flex items-center justify-center gap-2 py-4 text-base rounded-2xl"
-                  onClick={verifyOtp} disabled={otp.join('').length !== 6}>
-                  <Shield size={17} /> Verify OTP
+                <button
+                  onClick={verifyOtp}
+                  disabled={otp.join('').length !== 6}
+                  className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl font-bold text-base text-white transition-all active:scale-[0.98] disabled:opacity-40"
+                  style={{ background: 'linear-gradient(135deg,#f97316,#ea580c)', boxShadow: '0 6px 20px rgba(249,115,22,0.35)' }}>
+                  <Shield size={17} /> Verify &amp; Continue
                 </button>
-                <div className="flex items-center justify-center gap-3 py-1">
+
+                {/* Resend + change number — clearly laid out */}
+                <div className="flex items-center justify-between px-1 pt-1">
                   {resendTimer > 0 ? (
                     <p className="text-sm text-stone-400">
                       Resend in <span className="font-bold text-orange-500">{resendTimer}s</span>
                     </p>
                   ) : (
                     <button onClick={resendOtp}
-                      className="flex items-center gap-1.5 text-sm font-semibold text-orange-500 hover:text-orange-600 transition-colors">
-                      <RotateCcw size={14} /> Resend OTP
+                      className="flex items-center gap-1.5 text-sm font-semibold text-orange-500 hover:text-orange-600 transition-colors active:scale-95">
+                      <RotateCcw size={13} /> Resend OTP
                     </button>
                   )}
-                  <span className="text-stone-300">·</span>
-                  <button onClick={() => { setStep(STEPS.PHONE); setOtp(['','','','','','']); clearInterval(timerRef.current); }}
-                    className="text-sm text-stone-400 hover:text-stone-600">
-                    Change number
+
+                  {/* Change number — always visible on OTP screen */}
+                  <button onClick={handleBack}
+                    className="flex items-center gap-1 text-sm text-stone-400 hover:text-orange-500 font-medium transition-colors active:scale-95">
+                    <Edit2 size={12} /> Change number
                   </button>
                 </div>
               </>
@@ -405,33 +508,56 @@ export default function LoginPage() {
           </>
         )}
 
-        {/* NAME */}
+        {/* ── NAME STEP ── */}
         {step === STEPS.NAME && (
           <>
-            <input className="input-field text-lg font-semibold py-4 rounded-2xl"
-              placeholder="Your full name" value={name}
+            <p className="text-xs text-stone-400 text-center">This is shown to other Kabutar users</p>
+            <input
+              className="w-full bg-white border border-stone-200 rounded-2xl px-4 py-3.5 text-lg font-bold text-stone-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 transition-all placeholder:text-stone-300 placeholder:font-normal shadow-sm"
+              placeholder="Your full name"
+              value={name}
               onChange={e => setName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && submitName()}
-              autoFocus />
-            <button className="btn-primary w-full flex items-center justify-center gap-2 py-4 text-base rounded-2xl"
-              onClick={submitName} disabled={loading}>
-              {loading ? <Spinner /> : <><span>Get Started</span><ArrowRight size={17} /></>}
+              autoFocus
+            />
+            <button
+              onClick={submitName}
+              disabled={loading || name.trim().length < 2}
+              className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl font-bold text-base text-white transition-all active:scale-[0.98] disabled:opacity-50"
+              style={{ background: 'linear-gradient(135deg,#f97316,#ea580c)', boxShadow: '0 6px 20px rgba(249,115,22,0.35)' }}>
+              {loading ? <Spinner /> : <><span>Get Started</span><ArrowRight size={18} /></>}
             </button>
           </>
         )}
       </div>
+
+      {legalModal && <LegalModal type={legalModal} onClose={() => setLegalModal(null)} />}
     </div>
   );
 }
 
-function Spinner() {
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function SendingDots() {
   return (
-    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+    <span className="flex gap-0.5 items-end pb-0.5 ml-0.5">
+      {[0, 1, 2].map(i => (
+        <span key={i} className="w-1 h-1 rounded-full bg-white inline-block"
+          style={{ animation: `bounce 0.9s ease-in-out ${i * 0.2}s infinite` }} />
+      ))}
+    </span>
+  );
+}
+
+function Spinner({ dark = false }) {
+  return (
+    <svg className="animate-spin h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke={dark ? '#374151' : 'white'} strokeWidth="4" />
+      <path className="opacity-75" fill={dark ? '#374151' : 'white'} d="M4 12a8 8 0 018-8v8z" />
     </svg>
   );
 }
+
 function GoogleIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 18 18">
