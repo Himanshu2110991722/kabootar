@@ -6,19 +6,22 @@ import { uploadImageToStorage } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import {
-  Star, Phone, LogOut, ChevronRight, Package, Send,
+  Star, Phone, LogOut, Package, Send,
   Shield, CheckCircle, Clock, Camera, Lock, MapPin,
   History, AlertCircle, Edit2, Pencil, Trash2, Train,
   Plane, Bus, Car, ChevronDown, ChevronUp, Plus,
+  Settings, ChevronRight, Award, Truck, MessageCircle,
+  UserCheck, FileText, HelpCircle, Trash, Share2,
 } from 'lucide-react';
 import KYCUploadModal from '../components/KYCUploadModal';
-import LegalModal from '../components/LegalModal';
 import PhoneVerifyModal from '../components/PhoneVerifyModal';
 import PostTripModal from '../components/PostTripModal';
 import PostParcelModal from '../components/PostParcelModal';
 import CityInput from '../components/CityInput';
+import LegalModal from '../components/LegalModal';
 
 const TRANSPORT_ICON = { train: Train, flight: Plane, bus: Bus, car: Car };
+const TRANSPORT_EMOJI = { train: '🚂', flight: '✈️', bus: '🚌', car: '🚗' };
 
 const calcCompletion = (user) => {
   const checks = [
@@ -31,14 +34,28 @@ const calcCompletion = (user) => {
   return Math.round((checks.filter(Boolean).length / 5) * 100);
 };
 
+// ── Trust score ring ──────────────────────────────────────────────────────────
+function TrustRing({ pct }) {
+  const r = 28, circ = 2 * Math.PI * r;
+  const dash = (pct / 100) * circ;
+  const color = pct >= 80 ? '#10b981' : pct >= 60 ? '#f97316' : '#f59e0b';
+  return (
+    <svg width="72" height="72" viewBox="0 0 72 72">
+      <circle cx="36" cy="36" r={r} fill="none" stroke="#f3f4f6" strokeWidth="6" />
+      <circle cx="36" cy="36" r={r} fill="none" stroke={color} strokeWidth="6"
+        strokeDasharray={`${dash} ${circ}`} strokeDashoffset={circ / 4}
+        strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease' }} />
+      <text x="36" y="40" textAnchor="middle" fontSize="14" fontWeight="900" fill={color}>{pct}%</text>
+    </svg>
+  );
+}
+
 export default function ProfilePage() {
   const { user, logout, setUser, refreshUser } = useAuth();
-  const [legalModal,      setLegalModal]      = useState(null); // 'terms' | 'privacy'
-  const [showDeleteModal,  setShowDeleteModal]  = useState(false);
-  const [deletingAccount,  setDeletingAccount]  = useState(false);
   const navigate  = useNavigate();
   const photoRef  = useRef(null);
 
+  // ── existing derived values ────────────────────────────────────────────────
   const currentPhone  = user?.phone?.startsWith('google_') ? '' : (user?.phone?.replace('+91', '') || '');
   const isGoogleUser  = user?.phone?.startsWith('google_');
   const hasRealPhone  = user?.phone && !isGoogleUser;
@@ -50,22 +67,25 @@ export default function ProfilePage() {
     ? new Date(user.createdAt).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
     : '';
 
-  const [editing,        setEditing]        = useState(false);
-  const [draft,          setDraft]          = useState({ name: user?.name || '', phone: currentPhone, city: user?.city || '' });
-  const [saving,          setSaving]          = useState(false);
-  const [uploadingPhoto,  setUploadingPhoto]  = useState(false);
-  const [showKyc,         setShowKyc]         = useState(false);
-  const [showPhoneVerify, setShowPhoneVerify] = useState(false);
+  // ── existing state ─────────────────────────────────────────────────────────
+  const [legalModal,       setLegalModal]       = useState(null);
+  const [showDeleteModal,  setShowDeleteModal]   = useState(false);
+  const [deletingAccount,  setDeletingAccount]  = useState(false);
+  const [editing,          setEditing]          = useState(false);
+  const [draft,            setDraft]            = useState({ name: user?.name || '', phone: currentPhone, city: user?.city || '', bio: user?.bio || '' });
+  const [saving,           setSaving]           = useState(false);
+  const [uploadingPhoto,   setUploadingPhoto]   = useState(false);
+  const [showKyc,          setShowKyc]          = useState(false);
+  const [showPhoneVerify,  setShowPhoneVerify]  = useState(false);
+  const [myTrips,          setMyTrips]          = useState([]);
+  const [myParcels,        setMyParcels]        = useState([]);
+  const [editingTrip,      setEditingTrip]      = useState(null);
+  const [editingParcel,    setEditingParcel]    = useState(null);
+  const [completedParcels, setCompletedParcels] = useState([]);
 
-  // ── Inline trip / parcel management ────────────────────────────────────────
-  const [myTrips,       setMyTrips]       = useState([]);
-  const [myParcels,     setMyParcels]     = useState([]);
-  const [tripsOpen,     setTripsOpen]     = useState(false);
-  const [parcelsOpen,   setParcelsOpen]   = useState(false);
-  const [editingTrip,   setEditingTrip]   = useState(null);
-  const [editingParcel, setEditingParcel] = useState(null);
+  // ── new UI state ───────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState('trips'); // trips | parcels | settings
 
-  // Always refresh user on mount so phone/KYC status is never stale from localStorage
   useEffect(() => { refreshUser(); }, []); // eslint-disable-line
 
   useEffect(() => {
@@ -75,62 +95,59 @@ export default function ProfilePage() {
       setMyTrips(r.data.trips.filter(t => t.status === 'active' && new Date(t.date) >= today));
     }).catch(() => {});
     api.get('/parcels/my').then(r => {
-      setMyParcels(r.data.parcels.filter(p => p.status === 'open'));
+      const all = r.data.parcels || [];
+      setMyParcels(all.filter(p => p.status === 'open'));
+      setCompletedParcels(all.filter(p => p.status === 'completed' && (
+        String(p.travelerId?._id || p.travelerId) === String(user._id)
+      )));
     }).catch(() => {});
   }, [user]);
 
+  // ── existing handlers (unchanged) ─────────────────────────────────────────
   const deleteTrip = async (id) => {
     if (!confirm('Delete this trip?')) return;
     await api.delete(`/trips/${id}`);
     setMyTrips(prev => prev.filter(t => t._id !== id));
     toast.success('Trip deleted');
   };
-
   const markTripFull = async (id) => {
     if (!confirm('Mark as full? Removes from public listing.')) return;
     await api.patch(`/trips/${id}`, { status: 'completed' });
     setMyTrips(prev => prev.filter(t => t._id !== id));
     toast.success('Trip marked as full');
   };
-
   const deleteParcel = async (id) => {
     if (!confirm('Delete this parcel request?')) return;
     await api.delete(`/parcels/${id}`);
     setMyParcels(prev => prev.filter(p => p._id !== id));
     toast.success('Parcel request deleted');
   };
-
   const cancelEdit = () => {
     setEditing(false);
-    setDraft({ name: user?.name || '', phone: currentPhone, city: user?.city || '' });
+    setDraft({ name: user?.name || '', phone: currentPhone, city: user?.city || '', bio: user?.bio || '' });
   };
-
   const handlePhotoPick = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 4 * 1024 * 1024) { toast.error('Image must be under 4 MB'); return; }
     setUploadingPhoto(true);
     try {
-      // Upload to Firebase Storage — persists permanently unlike Render's disk
       const imageUrl = await uploadImageToStorage(file, 'profile-images');
       const { data } = await api.post('/auth/me/image', { imageUrl });
       const updated = { ...user, profileImage: data.user.profileImage };
       localStorage.setItem('kabootar_user', JSON.stringify(updated));
       setUser(updated);
       toast.success('Profile photo saved!');
-    } catch (err) {
-      toast.error('Upload failed — make sure Firebase Storage is enabled');
-      console.error('Photo upload:', err);
-    }
+    } catch { toast.error('Upload failed'); }
     finally { setUploadingPhoto(false); e.target.value = ''; }
   };
-
   const saveProfile = async () => {
     if (!draft.name.trim()) { toast.error('Name cannot be empty'); return; }
     setSaving(true);
     const payload = {};
     if (draft.name.trim() !== user?.name)        payload.name  = draft.name.trim();
     if (draft.city.trim() !== (user?.city || '')) payload.city  = draft.city.trim();
+    if (draft.bio  !== (user?.bio  || ''))        payload.bio   = draft.bio;
     if (draft.phone && draft.phone.length === 10) payload.phone = '+91' + draft.phone;
     try {
       const { data } = await api.patch('/auth/me', payload);
@@ -139,471 +156,450 @@ export default function ProfilePage() {
       setEditing(false);
       toast.success('Profile saved!');
     } catch (err) {
-      toast.error(err.response?.status === 409 ? 'Phone already registered to another account' : 'Failed to save');
+      toast.error(err.response?.status === 409 ? 'Phone already registered' : 'Failed to save');
     } finally { setSaving(false); }
   };
-
   const handleLogout = async () => {
     if (!confirm('Log out of Kabutar?')) return;
     await logout();
     navigate('/login');
   };
 
-  return (
-    <div className="pb-8">
+  // ── Checklist items for completion ────────────────────────────────────────
+  const checklist = [
+    { label: 'Full name', done: !!user?.name?.trim(), action: () => setEditing(true) },
+    { label: 'Phone number', done: hasRealPhone, action: () => setShowPhoneVerify(true) },
+    { label: 'Profile photo', done: hasPhoto, action: () => photoRef.current?.click() },
+    { label: 'Hometown city', done: hasCity, action: () => setEditing(true) },
+    { label: 'Phone verified', done: !!user?.isPhoneVerified || user?.kycStatus === 'verified', action: () => setShowPhoneVerify(true) },
+  ];
 
-      {/* ── HERO: gradient banner + overlapping avatar ─────────── */}
-      <div className="relative mb-14">
-        {/* Banner */}
-        <div className="h-28 bg-gradient-to-br from-orange-500 via-orange-400 to-violet-500 relative overflow-hidden">
-          <div className="absolute -right-6 -top-6 w-28 h-28 rounded-full bg-white/10" />
-          <div className="absolute right-6 top-10 w-16 h-16 rounded-full bg-white/10" />
-          <div className="absolute -left-4 top-4 w-20 h-20 rounded-full bg-white/10" />
+  return (
+    <div className="pb-24 bg-stone-50 min-h-screen">
+
+      {/* ── HERO BANNER ─────────────────────────────────────────────────── */}
+      <div className="relative">
+        {/* Gradient banner */}
+        <div className="h-36 lg:h-48 relative overflow-hidden"
+          style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 45%, #7c3aed 100%)' }}>
+          {/* Decorative circles */}
+          <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/10" />
+          <div className="absolute -bottom-4 right-16 w-24 h-24 rounded-full bg-white/8" />
+          <div className="absolute top-4 left-8 w-16 h-16 rounded-full bg-white/10" />
+          {/* Edit photo overlay on banner if no photo */}
+          <div className="absolute top-3 right-3 flex gap-2">
+            <button onClick={() => { if (!editing) setEditing(true); }}
+              className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm text-white text-xs font-bold px-3 py-1.5 rounded-xl border border-white/25 active:scale-95 transition-all">
+              <Edit2 size={12} /> Edit Profile
+            </button>
+          </div>
         </div>
 
         {/* Avatar — overlaps banner */}
-        <div className="absolute left-1/2 -translate-x-1/2 -bottom-12">
+        <div className="absolute left-1/2 -translate-x-1/2" style={{ bottom: -48 }}>
           <div className="relative">
-            <div className="w-24 h-24 rounded-full border-4 border-white shadow-xl overflow-hidden bg-orange-50 flex items-center justify-center font-bold text-2xl text-orange-500">
+            <div className="w-24 h-24 rounded-full border-4 border-white shadow-xl overflow-hidden bg-orange-100 flex items-center justify-center font-black text-3xl text-orange-500">
               {hasPhoto
                 ? <img src={user.profileImage} alt="avatar" className="w-full h-full object-cover" />
                 : uploadingPhoto
-                  ? <svg className="animate-spin h-7 w-7 text-orange-400" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                  ? <div className="animate-spin w-7 h-7 border-3 border-orange-400 border-t-transparent rounded-full" />
                   : initials}
             </div>
-            {!hasPhoto && !uploadingPhoto && (
-              <button onClick={() => photoRef.current?.click()}
-                className="absolute bottom-0.5 right-0.5 w-7 h-7 bg-orange-500 hover:bg-orange-600 rounded-full flex items-center justify-center shadow-md border-2 border-white transition-colors">
-                <Camera size={13} className="text-white" />
-              </button>
-            )}
-            {hasPhoto && (
-              <div className="absolute bottom-0.5 right-0.5 w-7 h-7 bg-stone-400 rounded-full flex items-center justify-center shadow-md border-2 border-white" title="Photo locked">
-                <Lock size={11} className="text-white" />
-              </div>
-            )}
+            <button onClick={() => photoRef.current?.click()}
+              className="absolute bottom-0 right-0 w-8 h-8 bg-orange-500 hover:bg-orange-600 rounded-full flex items-center justify-center shadow-lg border-2 border-white transition-colors active:scale-90">
+              <Camera size={14} className="text-white" />
+            </button>
             <input ref={photoRef} type="file" accept="image/*" capture="user" className="hidden" onChange={handlePhotoPick} />
           </div>
         </div>
       </div>
 
-      {/* ── Name + badges ─────────────────────────────────────── */}
-      <div className="text-center px-4 mb-4">
-        <h2 className="text-xl font-bold text-stone-900">{user?.name}</h2>
-        {memberSince && <p className="text-[11px] text-stone-400 mt-0.5">Member since {memberSince}</p>}
+      {/* ── NAME + IDENTITY (below hero) ─────────────────────────────────── */}
+      <div className="pt-16 px-5 text-center space-y-1" style={{ animation: 'staggerIn 0.35s ease both' }}>
+        <h1 className="text-xl font-black text-stone-900">{user?.name}</h1>
 
-        {/* Verification badges row */}
-        <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
+        {/* Verification pills */}
+        <div className="flex items-center justify-center gap-2 flex-wrap">
           {user?.isPhoneVerified && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <CheckCircle size={9} /> Phone Verified
+            <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+              <Phone size={10} /> Phone Verified
             </span>
           )}
           {user?.kycStatus === 'verified' && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-              <Shield size={9} /> KYC Verified
+            <span className="flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full">
+              <Shield size={10} /> KYC Verified
             </span>
           )}
           {user?.kycStatus === 'pending' && (
-            <button onClick={() => setShowKyc(true)}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 animate-pulse-soft">
-              <Clock size={9} /> Under Review
-            </button>
+            <span className="flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full animate-pulse">
+              <Clock size={10} /> Under Review
+            </span>
           )}
           {(!user?.kycStatus || user?.kycStatus === 'none') && (
             <button onClick={() => setShowKyc(true)}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-100 text-stone-500 border border-stone-200 hover:border-orange-300 hover:text-orange-600 transition-colors">
-              <Shield size={9} /> Get KYC Verified
-            </button>
-          )}
-          {user?.kycStatus === 'rejected' && (
-            <button onClick={() => setShowKyc(true)}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-600 border border-red-200">
-              <AlertCircle size={9} /> Rejected — resubmit
+              className="flex items-center gap-1 text-[11px] font-bold text-stone-500 bg-stone-100 border border-stone-200 px-2.5 py-1 rounded-full hover:border-orange-300 hover:text-orange-600 transition-all">
+              <Shield size={10} /> Get KYC Verified
             </button>
           )}
         </div>
+
+        {/* Location + member since */}
+        <div className="flex items-center justify-center gap-3 text-xs text-stone-400 pt-0.5">
+          {user?.city && <span className="flex items-center gap-1"><MapPin size={11} />{user.city}</span>}
+          {memberSince && <span>· Member since {memberSince}</span>}
+        </div>
+
+        {/* Bio */}
+        {user?.bio && !editing && (
+          <p className="text-sm text-stone-500 leading-relaxed max-w-xs mx-auto mt-1 italic">"{user.bio}"</p>
+        )}
       </div>
 
-      {/* ── Stats strip ───────────────────────────────────────── */}
-      <div className="mx-4 card mb-4 overflow-hidden">
-        <div className="grid grid-cols-3 divide-x divide-stone-100">
-          <div className="py-3 text-center">
-            <div className="flex items-center justify-center gap-1">
+      {/* ── STATS ROW ─────────────────────────────────────────────────────── */}
+      <div className="px-4 mt-5" style={{ animation: 'staggerIn 0.35s ease 0.08s both' }}>
+        <div className="grid grid-cols-3 divide-x divide-stone-100 bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+          <div className="py-3.5 text-center">
+            <div className="flex items-center justify-center gap-1 mb-0.5">
               <Star size={13} className="text-amber-400 fill-amber-400" />
-              <span className="font-bold text-stone-900 text-base">{user?.rating?.toFixed(1) || '5.0'}</span>
+              <span className="text-lg font-black text-stone-900">{user?.rating?.toFixed(1) || '5.0'}</span>
             </div>
-            <div className="text-[10px] text-stone-400 mt-0.5">Rating</div>
+            <p className="text-[10px] text-stone-400 font-semibold uppercase tracking-wide">Rating</p>
           </div>
-          <div className="py-3 text-center">
-            <div className="font-bold text-stone-900 text-base">{user?.totalRatings || 0}</div>
-            <div className="text-[10px] text-stone-400 mt-0.5">Reviews</div>
+          <div className="py-3.5 text-center">
+            <div className="text-lg font-black text-stone-900 mb-0.5">{myTrips.length}</div>
+            <p className="text-[10px] text-stone-400 font-semibold uppercase tracking-wide">Active Trips</p>
           </div>
-          <div className="py-3 text-center">
-            <div className="font-bold text-stone-900 text-base">{user?.tripsCompleted || 0}</div>
-            <div className="text-[10px] text-stone-400 mt-0.5">Deliveries</div>
+          <div className="py-3.5 text-center">
+            <div className="text-lg font-black text-stone-900 mb-0.5">{user?.tripsCompleted || 0}</div>
+            <p className="text-[10px] text-stone-400 font-semibold uppercase tracking-wide">Deliveries</p>
           </div>
         </div>
       </div>
 
-      {/* ── Personal Info card ────────────────────────────────── */}
-      <div className="mx-4 card mb-4 overflow-hidden">
-        {/* Header row */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 bg-stone-50/50">
-          <span className="text-xs font-bold text-stone-600 uppercase tracking-wide">Personal Info</span>
-          {!editing ? (
-            <button onClick={() => setEditing(true)}
-              className="flex items-center gap-1 text-xs font-semibold text-orange-500 hover:text-orange-600 transition-colors">
-              <Pencil size={12} /> Edit
-            </button>
-          ) : (
-            <button onClick={cancelEdit} className="text-xs font-semibold text-stone-400">Cancel</button>
-          )}
-        </div>
-
-        {editing ? (
-          /* ── Edit form ── */
-          <div className="px-4 py-4 space-y-3">
-            <div>
-              <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wide mb-1.5">Full Name</label>
-              <input className="input-field" value={draft.name}
-                onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} autoFocus />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wide mb-1.5">Hometown City</label>
-              <CityInput value={draft.city} onChange={v => setDraft(d => ({ ...d, city: v }))} placeholder="e.g. Delhi, Mumbai…" />
-              <p className="text-[10px] text-stone-400 mt-1">Builds trust with senders</p>
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wide mb-1.5">Phone Number</label>
-              <div className="flex gap-2">
-                <span className="input-field w-14 text-center text-stone-600 shrink-0 flex items-center justify-center text-sm font-semibold">+91</span>
-                <input className="input-field flex-1" placeholder="9876543210"
-                  value={draft.phone}
-                  onChange={e => setDraft(d => ({ ...d, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
-                  inputMode="numeric" maxLength={10} />
-              </div>
-              <p className="text-[10px] text-stone-400 mt-1">Changing phone resets verification</p>
-            </div>
-            <button onClick={saveProfile} disabled={saving} className="btn-primary w-full">
-              {saving ? 'Saving…' : 'Save Changes'}
-            </button>
-          </div>
-        ) : (
-          /* ── Display rows ── */
-          <div className="divide-y divide-stone-50">
-            {/* Name */}
-            <InfoRow icon={<Edit2 size={15} className="text-stone-400" />} label="Display Name" value={user?.name} />
-
-            {/* City */}
-            <div className="flex items-center gap-3 px-4 py-3">
-              <MapPin size={15} className="text-stone-400 shrink-0" />
+      {/* ── TRUST SCORE + PROFILE COMPLETION ─────────────────────────────── */}
+      {completion < 100 && (
+        <div className="px-4 mt-4" style={{ animation: 'staggerIn 0.35s ease 0.12s both' }}>
+          <div className="bg-white border border-stone-100 rounded-2xl shadow-sm p-4">
+            <div className="flex items-center gap-4">
+              <TrustRing pct={completion} />
               <div className="flex-1">
-                <p className="text-[10px] text-stone-400 uppercase tracking-wide mb-0.5">Hometown</p>
-                <p className="text-sm text-stone-800 font-medium">{hasCity ? user.city : '—'}</p>
-              </div>
-              {!hasCity && (
-                <button onClick={() => setEditing(true)} className="text-[11px] font-semibold text-orange-500">+ Add</button>
-              )}
-            </div>
-
-            {/* Phone */}
-            <div className="flex items-center gap-3 px-4 py-3">
-              <Phone size={15} className="text-stone-400 shrink-0" />
-              <div className="flex-1">
-                <p className="text-[10px] text-stone-400 uppercase tracking-wide mb-0.5">Phone</p>
-                {hasRealPhone ? (
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm text-stone-800 font-medium">{user.maskedPhone}</p>
-                    {user?.isPhoneVerified
-                      ? <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-0.5"><CheckCircle size={9} /> Verified</span>
-                      : <button onClick={() => setShowPhoneVerify(true)}
-                          className="text-[10px] font-bold text-amber-600 flex items-center gap-0.5 hover:underline">
-                          <Clock size={9} /> Verify now
-                        </button>
-                    }
-                  </div>
-                ) : (
-                  <button onClick={() => setShowPhoneVerify(true)}
-                    className="text-sm text-orange-500 font-semibold hover:text-orange-600 transition-colors">
-                    + Add & verify phone
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* KYC */}
-            <div className="flex items-center gap-3 px-4 py-3">
-              <Shield size={15} className="text-stone-400 shrink-0" />
-              <div className="flex-1">
-                <p className="text-[10px] text-stone-400 uppercase tracking-wide mb-0.5">Identity Verification</p>
-                <p className="text-sm font-medium">
-                  {user?.kycStatus === 'verified' && <span className="text-emerald-600">✓ KYC Verified</span>}
-                  {user?.kycStatus === 'pending'  && <span className="text-amber-600">Under review…</span>}
-                  {user?.kycStatus === 'rejected' && <span className="text-red-500">Rejected — resubmit</span>}
-                  {(!user?.kycStatus || user?.kycStatus === 'none') && <span className="text-stone-400">Not verified</span>}
+                <p className="text-sm font-black text-stone-900">Trust Score</p>
+                <p className="text-[11px] text-stone-500 mt-0.5 leading-relaxed">
+                  Complete your profile to earn more trust from senders
                 </p>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {checklist.map(item => (
+                    <button key={item.label} onClick={item.done ? undefined : item.action}
+                      className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all ${
+                        item.done
+                          ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                          : 'bg-stone-50 text-stone-400 border-stone-200 hover:border-orange-300 hover:text-orange-600'
+                      }`}>
+                      {item.done ? <CheckCircle size={9} /> : <Plus size={9} />}
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <button onClick={() => setShowKyc(true)}
-                className="text-[11px] font-semibold text-orange-500 hover:text-orange-600">
-                {user?.kycStatus === 'verified' ? 'View' : user?.kycStatus === 'pending' ? 'View' : '+ Verify'}
-              </button>
             </div>
           </div>
-        )}
-
-        {/* Profile completion strip at bottom of info card */}
-        {completion < 100 && !editing && (
-          <div className="px-4 py-2.5 bg-orange-50 border-t border-orange-100">
-            <div className="flex items-center gap-2 mb-1.5">
-              <div className="flex-1 h-1.5 bg-orange-100 rounded-full overflow-hidden">
-                <div className="h-full bg-orange-500 rounded-full transition-all" style={{ width: `${completion}%` }} />
-              </div>
-              <span className="text-[10px] font-bold text-orange-600 shrink-0">{completion}%</span>
-            </div>
-            <p className="text-[10px] text-orange-600">
-              {!hasPhoto ? '📸 Add a profile photo to get 3× more responses'
-                : !hasCity ? '🏠 Add your hometown to build trust with senders'
-                : '✅ Complete KYC to get your verified badge'}
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* ── KYC gate banner — show when not verified ── */}
-      {user?.kycStatus !== 'verified' && (
-        <div className="mx-4 mb-4 rounded-2xl overflow-hidden border border-amber-200 bg-amber-50">
-          <div className="flex items-start gap-3 px-4 py-3">
-            <AlertCircle size={18} className="text-amber-500 mt-0.5 shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-bold text-stone-800">
-                {user?.kycStatus === 'pending'
-                  ? 'KYC under review — you can\'t post trips yet'
-                  : 'KYC required to post trips'}
-              </p>
-              <p className="text-xs text-stone-500 mt-0.5">
-                {user?.kycStatus === 'pending'
-                  ? 'We\'re reviewing your documents. Approval usually takes 24h.'
-                  : 'Verify your identity to build trust with senders and unlock trip posting.'}
-              </p>
-            </div>
-          </div>
-          {user?.kycStatus !== 'pending' && (
-            <button onClick={() => navigate('/kyc')}
-              className="w-full bg-amber-500 text-white font-semibold text-sm py-2.5 flex items-center justify-center gap-1.5 hover:bg-amber-600 transition-colors">
-              <Shield size={14} /> Complete KYC Verification →
-            </button>
-          )}
         </div>
       )}
 
-      {/* ── My Trips — inline management ── */}
-      <div className="mx-4 card mb-3 overflow-hidden">
-        <button onClick={() => setTripsOpen(v => !v)}
-          className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-stone-50 transition-colors">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center">
-              <Send size={15} className="text-orange-500" />
+      {/* ── EDIT PROFILE SHEET ────────────────────────────────────────────── */}
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/50 backdrop-blur-sm animate-fade-in"
+          onClick={e => e.target === e.currentTarget && cancelEdit()}>
+          <div className="w-full max-w-lg mx-auto bg-white rounded-t-3xl px-5 py-6 space-y-4 animate-slide-up" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="font-black text-stone-900 text-lg">Edit Profile</h2>
+              <button onClick={cancelEdit} className="w-8 h-8 bg-stone-100 rounded-xl flex items-center justify-center active:scale-90 transition-all text-stone-500">✕</button>
             </div>
-            <div className="text-left">
-              <div className="text-sm font-semibold text-stone-800">My Trips</div>
-              <div className="text-[11px] text-stone-400">
-                {myTrips.length > 0 ? `${myTrips.length} active trip${myTrips.length !== 1 ? 's' : ''}` : 'No active trips'}
+            <div>
+              <label className="block text-xs font-bold text-stone-400 uppercase tracking-wide mb-1.5">Full Name</label>
+              <input className="input-field w-full" placeholder="Your name" value={draft.name}
+                onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-stone-400 uppercase tracking-wide mb-1.5">Hometown City</label>
+              <CityInput value={draft.city} onChange={v => setDraft(d => ({ ...d, city: v }))} placeholder="e.g. Patna" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-stone-400 uppercase tracking-wide mb-1.5">Bio</label>
+              <textarea className="input-field w-full resize-none" rows={3} maxLength={160}
+                placeholder="Tell senders about yourself — your routes, reliability, experience…"
+                value={draft.bio} onChange={e => setDraft(d => ({ ...d, bio: e.target.value }))} />
+              <p className="text-[10px] text-stone-400 text-right mt-0.5">{draft.bio.length}/160</p>
+            </div>
+            {!hasRealPhone && !isGoogleUser && (
+              <div>
+                <label className="block text-xs font-bold text-stone-400 uppercase tracking-wide mb-1.5">Phone Number</label>
+                <div className="flex gap-2">
+                  <div className="input-field w-14 text-center text-stone-600 text-sm font-bold shrink-0 flex items-center justify-center">+91</div>
+                  <input className="input-field flex-1" placeholder="9876543210" value={draft.phone}
+                    onChange={e => setDraft(d => ({ ...d, phone: e.target.value.replace(/\D/g,'').slice(0,10) }))}
+                    inputMode="numeric" maxLength={10} />
+                </div>
               </div>
+            )}
+            <div className="flex gap-2 pt-2">
+              <button onClick={cancelEdit} className="flex-1 py-3 rounded-2xl border border-stone-200 text-stone-600 font-bold text-sm active:scale-95 transition-all">Cancel</button>
+              <button onClick={saveProfile} disabled={saving}
+                className="flex-1 py-3 rounded-2xl bg-orange-500 text-white font-bold text-sm active:scale-95 transition-all disabled:opacity-60">
+                {saving ? 'Saving…' : 'Save Profile'}
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {user?.kycStatus === 'verified' && (
-              <button onClick={e => { e.stopPropagation(); setEditingTrip('new'); }}
-                className="w-7 h-7 rounded-lg bg-orange-50 flex items-center justify-center text-orange-500 hover:bg-orange-100 transition-colors">
-                <Plus size={14} />
-              </button>
-            )}
-            {tripsOpen ? <ChevronUp size={16} className="text-stone-400" /> : <ChevronDown size={16} className="text-stone-400" />}
-          </div>
-        </button>
+        </div>
+      )}
 
-        {tripsOpen && (
-          <div className="border-t border-stone-100">
-            {myTrips.length === 0 ? (
-              <div className="px-4 py-4 text-center">
-                <p className="text-xs text-stone-400 mb-2">No active trips posted yet</p>
-                {user?.kycStatus === 'verified' ? (
-                  <button onClick={() => setEditingTrip('new')}
-                    className="text-xs font-semibold text-orange-500">+ Post a trip</button>
-                ) : (
-                  <button onClick={() => navigate('/kyc')}
-                    className="text-xs font-semibold text-amber-500">Complete KYC first →</button>
-                )}
-              </div>
-            ) : (
-              <div className="divide-y divide-stone-50">
-                {myTrips.map(trip => {
-                  const TIcon = TRANSPORT_ICON[trip.transportMode] || Train;
-                  return (
-                    <div key={trip._id} className="px-4 py-3 flex items-center gap-3">
-                      <div className="shrink-0">
-                        <TIcon size={16} className="text-stone-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-stone-800 truncate">
-                          {trip.fromCity} → {trip.toCity}
-                        </p>
-                        <p className="text-[11px] text-stone-400">
-                          {format(new Date(trip.date), 'dd MMM yyyy')} · {trip.availableWeight} kg · ₹{trip.pricePerKg}/kg
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button onClick={() => setEditingTrip(trip)}
-                          className="w-7 h-7 rounded-lg bg-stone-50 border border-stone-200 flex items-center justify-center text-stone-500 hover:bg-stone-100 transition-colors">
-                          <Edit2 size={12} />
-                        </button>
-                        <button onClick={() => markTripFull(trip._id)}
-                          className="h-7 px-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-600 text-[10px] font-bold hover:bg-emerald-100 transition-colors">
-                          Full
-                        </button>
-                        <button onClick={() => deleteTrip(trip._id)}
-                          className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center text-red-400 hover:bg-red-100 transition-colors">
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            <div className="px-4 py-2.5 border-t border-stone-100">
-              <button onClick={() => navigate('/trips', { state: { tab: 'mine' } })}
-                className="text-xs font-semibold text-stone-400 hover:text-orange-500 transition-colors">
-                View travel history →
-              </button>
-            </div>
-          </div>
-        )}
+      {/* ── STICKY TAB BAR ─────────────────────────────────────────────────── */}
+      <div className="sticky top-0 z-30 bg-stone-50 px-4 pt-4 pb-0 mt-5">
+        <div className="flex bg-white rounded-2xl border border-stone-100 shadow-sm p-1 gap-1">
+          {[
+            { id: 'trips',    label: 'My Trips',   icon: Send   },
+            { id: 'parcels',  label: 'Parcels',    icon: Package },
+            { id: 'settings', label: 'Settings',   icon: Settings },
+          ].map(({ id, label, icon: Icon }) => (
+            <button key={id} onClick={() => setActiveTab(id)}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                activeTab === id ? 'bg-orange-500 text-white shadow-sm' : 'text-stone-500 hover:bg-stone-50'
+              }`}>
+              <Icon size={13} />
+              <span className="hidden sm:inline">{label}</span>
+              <span className="sm:hidden">{label.split(' ')[0]}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* ── My Parcel Requests — inline management ── */}
-      <div className="mx-4 card mb-4 overflow-hidden">
-        <button onClick={() => setParcelsOpen(v => !v)}
-          className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-stone-50 transition-colors">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center">
-              <Package size={15} className="text-blue-500" />
-            </div>
-            <div className="text-left">
-              <div className="text-sm font-semibold text-stone-800">My Parcel Requests</div>
-              <div className="text-[11px] text-stone-400">
-                {myParcels.length > 0 ? `${myParcels.length} open request${myParcels.length !== 1 ? 's' : ''}` : 'No open requests'}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={e => { e.stopPropagation(); setEditingParcel('new'); }}
-              className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 hover:bg-blue-100 transition-colors">
-              <Plus size={14} />
-            </button>
-            {parcelsOpen ? <ChevronUp size={16} className="text-stone-400" /> : <ChevronDown size={16} className="text-stone-400" />}
-          </div>
-        </button>
+      {/* ── TAB CONTENT ────────────────────────────────────────────────────── */}
+      <div className="px-4 pt-4">
 
-        {parcelsOpen && (
-          <div className="border-t border-stone-100">
-            {myParcels.length === 0 ? (
-              <div className="px-4 py-4 text-center">
-                <p className="text-xs text-stone-400 mb-2">No open parcel requests</p>
-                <button onClick={() => setEditingParcel('new')}
-                  className="text-xs font-semibold text-blue-500">+ Post a request</button>
+        {/* ── TRIPS TAB ── */}
+        {activeTab === 'trips' && (
+          <div className="space-y-3" style={{ animation: 'staggerIn 0.25s ease both' }}>
+            <button onClick={() => setEditingTrip('new')}
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm text-white active:scale-[0.98] transition-all"
+              style={{ background: 'linear-gradient(135deg,#f97316,#ea580c)', boxShadow: '0 4px 14px rgba(249,115,22,0.35)' }}>
+              <Plus size={16} /> Post a New Trip
+            </button>
+
+            {myTrips.length === 0 ? (
+              <div className="text-center py-10 bg-white rounded-2xl border border-stone-100">
+                <div className="text-4xl mb-3">✈️</div>
+                <p className="font-bold text-stone-700">No upcoming trips</p>
+                <p className="text-xs text-stone-400 mt-1">Post a trip to start earning by carrying parcels</p>
               </div>
-            ) : (
-              <div className="divide-y divide-stone-50">
-                {myParcels.map(parcel => (
-                  <div key={parcel._id} className="px-4 py-3 flex items-center gap-3">
-                    <span className="text-lg shrink-0">
-                      {parcel.itemType === 'documents' ? '📄' : parcel.itemType === 'electronics' ? '📱' : parcel.itemType === 'clothes' ? '👕' : '📦'}
-                    </span>
+            ) : myTrips.map((trip, i) => {
+              const Icon = TRANSPORT_ICON[trip.transportMode] || Train;
+              return (
+                <div key={trip._id} className="bg-white border border-stone-100 rounded-2xl p-4 shadow-sm"
+                  style={{ animation: `staggerIn 0.3s ease ${i * 50}ms both` }}>
+                  {/* Route */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-base">{TRANSPORT_EMOJI[trip.transportMode]}</span>
+                    <span className="font-black text-stone-900 text-sm">{trip.fromCity}</span>
+                    <div className="flex-1 h-px bg-gradient-to-r from-orange-200 to-stone-200" />
+                    <Icon size={12} className="text-stone-400" />
+                    <div className="flex-1 h-px bg-gradient-to-r from-stone-200 to-emerald-200" />
+                    <span className="font-black text-stone-900 text-sm">{trip.toCity}</span>
+                  </div>
+                  {/* Meta */}
+                  <div className="flex items-center gap-2 text-[11px] text-stone-500 mb-3">
+                    <span>📅 {format(new Date(trip.date), 'dd MMM yyyy')}</span>
+                    <span>· 📦 {trip.availableWeight}kg</span>
+                    <span>· ₹{trip.pricePerKg}/kg</span>
+                  </div>
+                  {/* Actions */}
+                  <div className="flex gap-2">
+                    <button onClick={() => setEditingTrip(trip)}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold border border-stone-200 text-stone-600 hover:bg-stone-50 active:scale-95 transition-all">
+                      <Edit2 size={12} /> Edit
+                    </button>
+                    <button onClick={() => markTripFull(trip._id)}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold border border-emerald-200 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 active:scale-95 transition-all">
+                      <CheckCircle size={12} /> Mark Full
+                    </button>
+                    <button onClick={() => deleteTrip(trip._id)}
+                      className="w-9 h-9 rounded-xl border border-red-100 bg-red-50 flex items-center justify-center text-red-400 hover:bg-red-100 active:scale-95 transition-all shrink-0">
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Delivery history */}
+            {completedParcels.length > 0 && (
+              <div className="mt-2">
+                <div className="flex items-center gap-2 mb-3">
+                  <History size={13} className="text-stone-400" />
+                  <span className="text-xs font-black text-stone-400 uppercase tracking-wide">Delivery History</span>
+                  <div className="flex-1 h-px bg-stone-100" />
+                </div>
+                {completedParcels.map(p => (
+                  <div key={p._id} className="bg-stone-50 border border-stone-100 rounded-2xl px-4 py-3 flex items-center gap-3 mb-2">
+                    <span className="text-xl">📦</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-stone-800 truncate">
-                        {parcel.fromCity} → {parcel.toCity}
-                      </p>
-                      <p className="text-[11px] text-stone-400 truncate">
-                        {parcel.itemType} · {parcel.weight} kg · {parcel.description?.slice(0, 30)}…
-                      </p>
+                      <p className="text-sm font-bold text-stone-800">{p.fromCity} → {p.toCity}</p>
+                      <p className="text-[11px] text-stone-400">{p.offeredPrice ? `₹${p.offeredPrice}` : p.weight + 'kg'} · {p.completedAt ? format(new Date(p.completedAt), 'dd MMM yy') : 'Completed'}</p>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button onClick={() => setEditingParcel(parcel)}
-                        className="w-7 h-7 rounded-lg bg-stone-50 border border-stone-200 flex items-center justify-center text-stone-500 hover:bg-stone-100 transition-colors">
-                        <Edit2 size={12} />
-                      </button>
-                      <button onClick={() => deleteParcel(parcel._id)}
-                        className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center text-red-400 hover:bg-red-100 transition-colors">
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">✅ Done</span>
                   </div>
                 ))}
               </div>
             )}
-            <div className="px-4 py-2.5 border-t border-stone-100">
-              <button onClick={() => navigate('/my-parcels')}
-                className="text-xs font-semibold text-stone-400 hover:text-blue-500 transition-colors">
-                View all parcel activity →
+          </div>
+        )}
+
+        {/* ── PARCELS TAB ── */}
+        {activeTab === 'parcels' && (
+          <div className="space-y-3" style={{ animation: 'staggerIn 0.25s ease both' }}>
+            <button onClick={() => setEditingParcel('new')}
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm text-white active:scale-[0.98] transition-all"
+              style={{ background: 'linear-gradient(135deg,#3b82f6,#2563eb)', boxShadow: '0 4px 14px rgba(59,130,246,0.35)' }}>
+              <Plus size={16} /> Post a Parcel Request
+            </button>
+
+            {myParcels.length === 0 ? (
+              <div className="text-center py-10 bg-white rounded-2xl border border-stone-100">
+                <div className="text-4xl mb-3">📦</div>
+                <p className="font-bold text-stone-700">No open parcel requests</p>
+                <p className="text-xs text-stone-400 mt-1">Post a request to find travellers on your route</p>
+              </div>
+            ) : myParcels.map((parcel, i) => (
+              <div key={parcel._id} className="bg-white border border-stone-100 rounded-2xl p-4 shadow-sm"
+                style={{ animation: `staggerIn 0.3s ease ${i * 50}ms both` }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-base">📦</span>
+                  <span className="font-black text-stone-900 text-sm">{parcel.fromCity} → {parcel.toCity}</span>
+                  <span className="ml-auto text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">Open</span>
+                </div>
+                <p className="text-[11px] text-stone-500 mb-3">{parcel.weight}kg · {parcel.itemType} · {parcel.offeredPrice ? `₹${parcel.offeredPrice} offered` : 'Price negotiable'}</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setEditingParcel(parcel)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold border border-stone-200 text-stone-600 hover:bg-stone-50 active:scale-95 transition-all">
+                    <Edit2 size={12} /> Edit
+                  </button>
+                  <button onClick={() => deleteParcel(parcel._id)}
+                    className="w-9 h-9 rounded-xl border border-red-100 bg-red-50 flex items-center justify-center text-red-400 active:scale-95 transition-all shrink-0">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── SETTINGS TAB ── */}
+        {activeTab === 'settings' && (
+          <div className="space-y-4" style={{ animation: 'staggerIn 0.25s ease both' }}>
+
+            {/* Account */}
+            <div>
+              <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2 px-1">Account</p>
+              <div className="bg-white border border-stone-100 rounded-2xl shadow-sm divide-y divide-stone-50 overflow-hidden">
+                <SettingRow icon={<Pencil size={15} className="text-orange-500" />} label="Edit Profile"
+                  sub="Name, bio, city" onClick={() => setEditing(true)} />
+                <SettingRow
+                  icon={<Phone size={15} className={hasRealPhone ? 'text-emerald-500' : 'text-stone-400'} />}
+                  label="Phone Number"
+                  sub={hasRealPhone ? (user?.isPhoneVerified ? '✓ Verified' : 'Tap to verify') : 'Not added'}
+                  onClick={() => setShowPhoneVerify(true)} />
+                <SettingRow
+                  icon={<Shield size={15} className={user?.kycStatus === 'verified' ? 'text-blue-500' : user?.kycStatus === 'pending' ? 'text-amber-500' : 'text-stone-400'} />}
+                  label="KYC Verification"
+                  sub={user?.kycStatus === 'verified' ? '✓ Identity verified' : user?.kycStatus === 'pending' ? 'Under review…' : 'Verify to post trips'}
+                  onClick={() => navigate('/kyc')} />
+                <SettingRow icon={<Camera size={15} className="text-violet-500" />} label="Profile Photo"
+                  sub={hasPhoto ? 'Photo added' : 'Add a photo'} onClick={() => photoRef.current?.click()} />
+              </div>
+            </div>
+
+            {/* Frequent route */}
+            {(user?.frequentRoute?.from || user?.frequentRoute?.to) && (
+              <div>
+                <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2 px-1">Frequent Route</p>
+                <div className="bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-100 rounded-2xl p-4">
+                  <p className="text-sm font-black text-stone-900">{user.frequentRoute.from} → {user.frequentRoute.to}</p>
+                  <p className="text-[11px] text-stone-400 mt-0.5">You get priority notifications for this route</p>
+                </div>
+              </div>
+            )}
+
+            {/* Support */}
+            <div>
+              <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2 px-1">Help & Legal</p>
+              <div className="bg-white border border-stone-100 rounded-2xl shadow-sm divide-y divide-stone-50 overflow-hidden">
+                <SettingRow icon={<HelpCircle size={15} className="text-orange-500" />} label="Help & Support"
+                  sub="kabutar.support@gmail.com"
+                  onClick={() => window.open('mailto:kabutar.support@gmail.com?subject=Kabutar Support', '_blank')} />
+                <SettingRow icon={<FileText size={15} className="text-stone-400" />} label="Terms of Service"
+                  sub="Our terms and conditions" onClick={() => setLegalModal('terms')} />
+                <SettingRow icon={<Shield size={15} className="text-stone-400" />} label="Privacy Policy"
+                  sub="How we handle your data" onClick={() => setLegalModal('privacy')} />
+              </div>
+            </div>
+
+            {/* Danger zone */}
+            <div className="space-y-2.5">
+              <button onClick={handleLogout}
+                className="w-full py-3.5 rounded-2xl border border-red-200 bg-red-50 text-red-500 font-bold text-sm flex items-center justify-center gap-2 hover:bg-red-100 active:scale-95 transition-all">
+                <LogOut size={16} /> Sign out
               </button>
+              <button onClick={() => setShowDeleteModal(true)}
+                className="w-full py-3 rounded-2xl text-stone-400 text-xs font-medium flex items-center justify-center gap-1.5 hover:text-red-400 transition-colors active:scale-95">
+                <Trash2 size={13} /> Delete account
+              </button>
+              <p className="text-center text-[11px] text-stone-300">🕊️ Kabutar v1.0.2 · Made with ♥ in India</p>
             </div>
           </div>
         )}
       </div>
 
-      {/* ── Other menu items ── */}
-      <div className="mx-4 card divide-y divide-stone-100 mb-4 overflow-hidden">
-        <MenuItem icon={<History size={16} className="text-violet-500" />} label="Travel History"
-          sub="Past trips & completed routes" onClick={() => navigate('/trips', { state: { tab: 'mine' } })} />
-        <MenuItem icon={<Shield  size={16} className="text-emerald-500" />} label="KYC Verification"
-          sub={user?.kycStatus === 'verified' ? 'Identity verified ✓' : user?.kycStatus === 'pending' ? 'Under review…' : 'Verify your identity — required to post trips'}
-          onClick={() => navigate('/kyc')} />
-      </div>
-
-      {/* ── Blocked users ────────────────────────────────────── */}
+      {/* ── BLOCKED USERS ── */}
       <BlockedUsersList />
 
-      {/* ── Help & Support ────────────────────────────────────── */}
-      <div className="mx-4 card divide-y divide-stone-100 mb-4 overflow-hidden">
-        <MenuItem
-          icon={<span className="text-base">💬</span>}
-          label="Help & Support"
-          sub="Email us at kabutar.support@gmail.com"
-          onClick={() => window.open('mailto:kabutar.support@gmail.com?subject=Kabutar Support', '_blank')}
+      {/* ── MODALS ── */}
+      {showKyc && <KYCUploadModal onClose={() => setShowKyc(false)} onSuccess={() => { setShowKyc(false); refreshUser(); }} />}
+      {showPhoneVerify && (
+        <PhoneVerifyModal
+          onClose={() => setShowPhoneVerify(false)}
+          onSuccess={(updated) => { setShowPhoneVerify(false); setDraft(d => ({ ...d, phone: updated.phone?.replace('+91','') || '' })); }}
+          prefillPhone={hasRealPhone && !user?.isPhoneVerified ? user.phone : undefined}
         />
-        <MenuItem
-          icon={<span className="text-base">📄</span>}
-          label="Terms of Service"
-          sub="Our terms and conditions"
-          onClick={() => setLegalModal('terms')}
-        />
-        <MenuItem
-          icon={<span className="text-base">🔒</span>}
-          label="Privacy Policy"
-          sub="How we handle your data"
-          onClick={() => setLegalModal('privacy')}
-        />
-      </div>
-
-      {/* ── Logout + Delete ───────────────────────────────────── */}
-      <div className="mx-4 space-y-3">
-        <button onClick={handleLogout}
-          className="w-full py-3.5 rounded-2xl border border-red-200 bg-red-50 text-red-500 font-semibold text-sm flex items-center justify-center gap-2 hover:bg-red-100 transition-colors active:scale-95">
-          <LogOut size={16} /> Sign out
-        </button>
-        <button onClick={() => setShowDeleteModal(true)}
-          className="w-full py-3 rounded-2xl text-stone-400 text-xs font-medium flex items-center justify-center gap-1.5 hover:text-red-400 transition-colors active:scale-95">
-          <Trash2 size={13} /> Delete account
-        </button>
-        <p className="text-center text-[11px] text-stone-400 mt-2">🕊️ Kabutar v1.0.0 · Made with ♥ in India</p>
-      </div>
-
-      {/* Legal modals */}
+      )}
       {legalModal && <LegalModal type={legalModal} onClose={() => setLegalModal(null)} />}
 
-      {/* Delete account confirmation */}
+      {editingTrip && (
+        <PostTripModal
+          initialData={editingTrip === 'new' ? null : editingTrip}
+          tripId={editingTrip === 'new' ? null : editingTrip._id}
+          onClose={() => setEditingTrip(null)}
+          onSuccess={trip => {
+            if (editingTrip === 'new') setMyTrips(prev => [trip, ...prev]);
+            else setMyTrips(prev => prev.map(t => t._id === trip._id ? trip : t));
+            setEditingTrip(null);
+            toast.success(editingTrip === 'new' ? 'Trip posted!' : 'Trip updated!');
+          }}
+        />
+      )}
+      {editingParcel && (
+        <PostParcelModal
+          initialData={editingParcel === 'new' ? null : editingParcel}
+          parcelId={editingParcel === 'new' ? null : editingParcel._id}
+          onClose={() => setEditingParcel(null)}
+          onSuccess={parcel => {
+            if (editingParcel === 'new') setMyParcels(prev => [parcel, ...prev]);
+            else setMyParcels(prev => prev.map(p => p._id === parcel._id ? parcel : p));
+            setEditingParcel(null);
+            toast.success(editingParcel === 'new' ? 'Parcel posted!' : 'Updated!');
+          }}
+        />
+      )}
+
+      {/* Delete account modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-end bg-black/50 backdrop-blur-sm animate-fade-in"
           onClick={() => setShowDeleteModal(false)}>
@@ -613,38 +609,23 @@ export default function ProfilePage() {
               <div className="text-4xl mb-3">⚠️</div>
               <h3 className="font-black text-stone-900 text-lg">Delete your account?</h3>
               <p className="text-stone-500 text-sm mt-2 leading-relaxed">
-                Your account will be scheduled for deletion. If you don't log in within <strong>3 days</strong>, your account and all data will be permanently deleted.
-              </p>
-              <p className="text-stone-400 text-xs mt-2">
-                Log in again within 3 days to cancel deletion.
+                Your account will be scheduled for deletion. Log in within <strong>3 days</strong> to cancel.
               </p>
             </div>
             <div className="space-y-2">
-              <button
-                disabled={deletingAccount}
+              <button disabled={deletingAccount}
                 onClick={async () => {
                   setDeletingAccount(true);
                   try {
                     await api.post('/auth/me/request-delete');
-                  } catch {
-                    // If backend unavailable, still proceed — data cleared locally
-                  }
-                  // Always log out and clear local data regardless of API response
-                  toast.success('Account deleted. Thank you for using Kabutar 🕊️');
+                  } catch {}
+                  toast.success('Account scheduled for deletion 🕊️');
                   setShowDeleteModal(false);
                   setDeletingAccount(false);
                   await logout();
                 }}
                 className="w-full py-3.5 rounded-2xl bg-red-500 text-white font-bold text-sm active:scale-95 transition-all disabled:opacity-60 flex items-center justify-center gap-2">
-                {deletingAccount ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                    </svg>
-                    Deleting…
-                  </>
-                ) : 'Yes, delete my account'}
+                {deletingAccount ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Deleting…</> : 'Yes, delete my account'}
               </button>
               <button onClick={() => setShowDeleteModal(false)}
                 className="w-full py-3.5 rounded-2xl bg-stone-100 text-stone-700 font-semibold text-sm active:scale-95 transition-all">
@@ -654,136 +635,68 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
-
-      {/* Trip edit / create modal */}
-      {editingTrip && (
-        <PostTripModal
-          initialData={editingTrip === 'new' ? null : editingTrip}
-          tripId={editingTrip === 'new' ? null : editingTrip._id}
-          onClose={() => setEditingTrip(null)}
-          onSuccess={trip => {
-            if (editingTrip === 'new') {
-              setMyTrips(prev => [trip, ...prev]);
-            } else {
-              setMyTrips(prev => prev.map(t => t._id === trip._id ? trip : t));
-            }
-            setEditingTrip(null);
-            toast.success(editingTrip === 'new' ? 'Trip posted!' : 'Trip updated!');
-          }}
-        />
-      )}
-
-      {/* Parcel edit / create modal */}
-      {editingParcel && (
-        <PostParcelModal
-          initialData={editingParcel === 'new' ? null : editingParcel}
-          parcelId={editingParcel === 'new' ? null : editingParcel._id}
-          onClose={() => setEditingParcel(null)}
-          onSuccess={parcel => {
-            if (editingParcel === 'new') {
-              setMyParcels(prev => [parcel, ...prev]);
-            } else {
-              setMyParcels(prev => prev.map(p => p._id === parcel._id ? parcel : p));
-            }
-            setEditingParcel(null);
-            toast.success(editingParcel === 'new' ? 'Request posted!' : 'Request updated!');
-          }}
-        />
-      )}
-
-      {showKyc && <KYCUploadModal onClose={() => setShowKyc(false)} onSuccess={() => refreshUser()} />}
-      {showPhoneVerify && (
-        <PhoneVerifyModal
-          onClose={() => setShowPhoneVerify(false)}
-          onSuccess={(updated) => {
-            setShowPhoneVerify(false);
-            setDraft(d => ({ ...d, phone: updated.phone?.replace('+91', '') || '' }));
-          }}
-          prefillPhone={hasRealPhone && !user?.isPhoneVerified ? user.phone : undefined}
-        />
-      )}
     </div>
   );
 }
 
-function InfoRow({ icon, label, value }) {
+// ── SettingRow helper ─────────────────────────────────────────────────────────
+function SettingRow({ icon, label, sub, onClick }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-3">
-      <span className="shrink-0">{icon}</span>
-      <div className="flex-1">
-        <p className="text-[10px] text-stone-400 uppercase tracking-wide mb-0.5">{label}</p>
-        <p className="text-sm text-stone-800 font-medium">{value || '—'}</p>
+    <button onClick={onClick}
+      className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-stone-50 active:bg-stone-100 transition-colors text-left">
+      <div className="w-9 h-9 rounded-xl bg-stone-50 border border-stone-100 flex items-center justify-center shrink-0">
+        {icon}
       </div>
-    </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-stone-900">{label}</p>
+        {sub && <p className="text-[11px] text-stone-400 mt-0.5">{sub}</p>}
+      </div>
+      <ChevronRight size={14} className="text-stone-300 shrink-0" />
+    </button>
   );
 }
 
+// ── Blocked Users List ────────────────────────────────────────────────────────
 function BlockedUsersList() {
   const [blocked, setBlocked] = useState([]);
   const [show,    setShow]    = useState(false);
-
   useEffect(() => {
     if (!show) return;
-    api.get('/users/blocked/list')
-      .then(r => setBlocked(r.data.blocked || []))
-      .catch(() => {});
+    api.get('/users/blocked/list').then(r => setBlocked(r.data.blocked || [])).catch(() => {});
   }, [show]);
-
   const unblock = async (id, name) => {
     await api.delete(`/users/${id}/block`).catch(() => {});
     setBlocked(prev => prev.filter(u => u._id !== id));
     toast.success(`${name} unblocked`);
   };
-
-  if (!show) {
-    return (
-      <div className="mx-4 mb-2">
-        <button onClick={() => setShow(true)}
-          className="w-full text-left text-xs text-stone-400 font-semibold px-2 py-2 hover:text-stone-600 transition-colors flex items-center gap-1.5">
-          🚫 Manage blocked users
-        </button>
-      </div>
-    );
-  }
-
+  if (!show) return (
+    <div className="mx-4 mt-4 mb-2">
+      <button onClick={() => setShow(true)}
+        className="text-xs text-stone-400 font-semibold flex items-center gap-1.5 active:scale-95 transition-all">
+        🚫 Manage blocked users
+      </button>
+    </div>
+  );
   return (
-    <div className="mx-4 card overflow-hidden mb-4">
+    <div className="mx-4 mt-4 bg-white border border-stone-100 rounded-2xl overflow-hidden shadow-sm">
       <div className="flex items-center justify-between px-4 py-3 border-b border-stone-50">
         <span className="text-sm font-bold text-stone-900">Blocked Users</span>
         <button onClick={() => setShow(false)} className="text-xs text-stone-400">Hide</button>
       </div>
-      {blocked.length === 0 ? (
-        <p className="text-xs text-stone-400 text-center py-4">No blocked users</p>
-      ) : blocked.map(u => (
-        <div key={u._id} className="flex items-center gap-3 px-4 py-3 border-b border-stone-50 last:border-0">
-          <div className="w-8 h-8 rounded-full bg-stone-100 overflow-hidden flex items-center justify-center shrink-0">
-            {u.profileImage
-              ? <img src={u.profileImage} className="w-full h-full object-cover" alt="" />
-              : <span className="text-stone-500 text-xs font-bold">{u.name?.[0]?.toUpperCase()}</span>}
+      {blocked.length === 0
+        ? <p className="text-xs text-stone-400 text-center py-4">No blocked users</p>
+        : blocked.map(u => (
+          <div key={u._id} className="flex items-center gap-3 px-4 py-3 border-b border-stone-50 last:border-0">
+            <div className="w-8 h-8 rounded-full bg-stone-100 overflow-hidden flex items-center justify-center shrink-0">
+              {u.profileImage ? <img src={u.profileImage} className="w-full h-full object-cover" alt="" /> : <span className="text-stone-500 text-xs font-bold">{u.name?.[0]?.toUpperCase()}</span>}
+            </div>
+            <span className="flex-1 text-sm font-medium text-stone-700">{u.name}</span>
+            <button onClick={() => unblock(u._id, u.name)}
+              className="text-xs font-bold text-orange-500 bg-orange-50 px-3 py-1.5 rounded-xl active:scale-95 transition-all">
+              Unblock
+            </button>
           </div>
-          <span className="flex-1 text-sm font-medium text-stone-700">{u.name}</span>
-          <button onClick={() => unblock(u._id, u.name)}
-            className="text-xs font-bold text-orange-500 bg-orange-50 px-3 py-1.5 rounded-xl active:scale-95 transition-all">
-            Unblock
-          </button>
-        </div>
-      ))}
+        ))}
     </div>
-  );
-}
-
-function MenuItem({ icon, label, sub, onClick }) {
-  return (
-    <button onClick={onClick}
-      className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-stone-50 active:bg-stone-100 transition-colors">
-      <div className="w-8 h-8 rounded-xl bg-stone-50 border border-stone-100 flex items-center justify-center shrink-0">
-        {icon}
-      </div>
-      <div className="flex-1 text-left">
-        <div className="text-sm font-semibold text-stone-800">{label}</div>
-        {sub && <div className="text-[11px] text-stone-400 mt-0.5">{sub}</div>}
-      </div>
-      <ChevronRight size={15} className="text-stone-300" />
-    </button>
   );
 }
