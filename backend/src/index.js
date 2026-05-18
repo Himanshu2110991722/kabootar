@@ -39,8 +39,6 @@ const announcementRoutes  = require('./routes/announcements');
 const appNotifRoutes      = require('./routes/appNotifications');
 const exploreRoutes       = require('./routes/explore');
 const postRoutes          = require('./routes/posts');
-const pollRoutes          = require('./routes/polls');
-const railwayUpdateRoutes = require('./routes/railwayUpdates');
 // Ensure Report model is registered for admin queries
 require('./models/Report');
 
@@ -181,9 +179,7 @@ app.use('/api/admin',         adminRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/notifications', appNotifRoutes);
 app.use('/api/explore',       exploreRoutes);
-app.use('/api/posts',          postRoutes);
-app.use('/api/polls',          pollRoutes);
-app.use('/api/railway-updates', railwayUpdateRoutes);
+app.use('/api/posts',         postRoutes);
 
 // Health check — also used as a keep-alive ping endpoint
 app.get('/health', (_req, res) => {
