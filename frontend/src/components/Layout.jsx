@@ -263,7 +263,7 @@ export default function Layout() {
       </header>
 
       {/* ── MOBILE HEADER (hidden on desktop) ──────────────────── */}
-      <header className="lg:hidden sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-stone-100 px-4 flex items-center justify-between"
+      <header className="lg:hidden sticky top-0 z-40 bg-white/97 backdrop-blur-md border-b border-stone-100 px-4 flex items-center justify-between"
         style={{ paddingTop:'calc(env(safe-area-inset-top,0px) + 12px)', paddingBottom:'12px', boxShadow:'0 1px 12px rgba(0,0,0,.06)' }}>
         <div className="flex items-center gap-2">
           <span className="text-xl" style={{ animation:'birdBob 3s ease-in-out infinite', display:'inline-block' }}>🕊️</span>
@@ -272,14 +272,31 @@ export default function Layout() {
             kabutar
           </span>
         </div>
-        {user && (
-          <button onClick={() => navigate('/profile')}
-            className="w-8 h-8 rounded-full overflow-hidden bg-orange-100 flex items-center justify-center border-2 border-orange-200">
-            {user.profileImage
-              ? <img src={user.profileImage} alt="" className="w-full h-full object-cover" />
-              : <span className="text-orange-600 font-black text-xs">{user.name?.[0]?.toUpperCase()}</span>}
+        <div className="flex items-center gap-1">
+          {/* Notification bell */}
+          <button
+            onClick={() => { localStorage.setItem('kabutar_alerts_seen', Date.now().toString()); setNotifUnread(0); navigate('/notifications'); }}
+            className={`relative w-8 h-8 rounded-xl flex items-center justify-center transition-all ${isNotif ? 'text-orange-500 bg-orange-50' : 'text-stone-500'}`}>
+            <Bell size={18} strokeWidth={1.8} />
+            <Badge count={notifUnread} />
           </button>
-        )}
+          {/* Chat */}
+          <button
+            onClick={() => authGate(() => { setChatUnread(0); navigate('/messages'); })}
+            className={`relative w-8 h-8 rounded-xl flex items-center justify-center transition-all ${isChat ? 'text-orange-500 bg-orange-50' : 'text-stone-500'}`}>
+            <MessageCircle size={18} strokeWidth={1.8} />
+            <Badge count={chatUnread} />
+          </button>
+          {/* Avatar */}
+          {user && (
+            <button onClick={() => navigate('/profile')}
+              className="w-7 h-7 rounded-full overflow-hidden bg-orange-100 flex items-center justify-center border-2 border-orange-200 ml-0.5">
+              {user.profileImage
+                ? <img src={user.profileImage} alt="" className="w-full h-full object-cover" />
+                : <span className="text-orange-600 font-black text-[10px]">{user.name?.[0]?.toUpperCase()}</span>}
+            </button>
+          )}
+        </div>
       </header>
 
       <style>{`
