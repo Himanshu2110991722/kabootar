@@ -198,13 +198,25 @@ export default function ProfilePage() {
         {/* Avatar — overlaps banner */}
         <div className="absolute left-1/2 -translate-x-1/2" style={{ bottom: -48 }}>
           <div className="relative">
-            <div className="w-24 h-24 rounded-full border-4 border-white shadow-xl overflow-hidden bg-orange-100 flex items-center justify-center font-black text-3xl text-orange-500">
+            {/* Avatar with optional blue verified ring for KYC users */}
+            <div className={`w-24 h-24 rounded-full border-4 shadow-xl overflow-hidden bg-orange-100 flex items-center justify-center font-black text-3xl text-orange-500 ${
+              user?.kycStatus === 'verified' ? 'border-blue-400' : 'border-white'
+            }`}>
               {hasPhoto
                 ? <img src={user.profileImage} alt="avatar" className="w-full h-full object-cover" />
                 : uploadingPhoto
                   ? <div className="animate-spin w-7 h-7 border-3 border-orange-400 border-t-transparent rounded-full" />
                   : initials}
             </div>
+            {/* Instagram-style blue verified badge */}
+            {user?.kycStatus === 'verified' && (
+              <div className="absolute top-1 right-1 w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white shadow-md"
+                title="KYC Verified">
+                <svg viewBox="0 0 10 8" width="11" height="9" fill="none">
+                  <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+            )}
             <button onClick={() => photoRef.current?.click()}
               className="absolute bottom-0 right-0 w-8 h-8 bg-orange-500 hover:bg-orange-600 rounded-full flex items-center justify-center shadow-lg border-2 border-white transition-colors active:scale-90">
               <Camera size={14} className="text-white" />

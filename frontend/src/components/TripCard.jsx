@@ -31,12 +31,23 @@ function shareToWA(text) {
   else window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
 }
 
-function Avatar({ user }) {
+function Avatar({ user, verified }) {
   return (
-    <div className="w-8 h-8 rounded-full overflow-hidden bg-orange-50 border border-orange-100 flex items-center justify-center font-bold text-xs text-orange-600 shrink-0">
-      {user?.profileImage
-        ? <img src={user.profileImage} alt={user.name} className="w-full h-full object-cover" />
-        : user?.name?.[0]?.toUpperCase()}
+    <div className="relative shrink-0">
+      <div className="w-9 h-9 rounded-full overflow-hidden bg-orange-50 border-2 border-white shadow-sm flex items-center justify-center font-bold text-xs text-orange-600"
+        style={verified ? { borderColor: '#3b82f6' } : {}}>
+        {user?.profileImage
+          ? <img src={user.profileImage} alt={user.name} className="w-full h-full object-cover" />
+          : user?.name?.[0]?.toUpperCase()}
+      </div>
+      {/* Instagram-style blue verified tick */}
+      {verified && (
+        <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white">
+          <svg viewBox="0 0 10 8" width="7" height="6" fill="white">
+            <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+          </svg>
+        </div>
+      )}
     </div>
   );
 }
@@ -160,13 +171,20 @@ https://app.kabutar.in`
         {traveler && typeof traveler === 'object' && (
           <div className="pt-2.5 border-t border-stone-100">
             {!isOwn ? (
+              /* ── Single row: Avatar | Name+Rating | [Chat] [View →] ── */
               <div className="flex items-center gap-2">
-                {/* Traveller info */}
-                <Avatar user={traveler} />
+                {/* Avatar with blue verified ring/tick */}
+                <Avatar user={traveler} verified={isVerified} />
+
+                {/* Name + trust info */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1 flex-wrap">
-                    <span className="text-xs font-bold text-stone-800 truncate">{traveler.name}</span>
-                    {isVerified && <CheckCircle size={9} className="text-emerald-500 fill-emerald-500 shrink-0" />}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs font-bold text-stone-900 truncate">{traveler.name}</span>
+                    {isVerified && (
+                      <span className="inline-flex items-center gap-0.5 text-[9px] font-black text-blue-600 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-full shrink-0">
+                        ✓ Trusted
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-1 text-[10px] text-stone-400">
                     <Star size={9} className="text-amber-400 fill-amber-400" />
@@ -174,50 +192,48 @@ https://app.kabutar.in`
                     {traveler.tripsCompleted > 0 && <span>· {traveler.tripsCompleted} trips</span>}
                   </div>
                 </div>
-                {/* Single CTA — fits on one line with traveller name */}
+
+                {/* Inline CTAs — Chat + View on same line, no wrap */}
                 {!isPast && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setShowDetail(true); }}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl font-bold text-[11px] text-white active:scale-95 transition-all shrink-0 whitespace-nowrap"
-                    style={{ background: 'linear-gradient(135deg,#f97316,#ea580c)', boxShadow: '0 2px 6px rgba(249,115,22,0.3)' }}>
-                    View →
-                  </button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); authGate(() => navigate(`/chat/${traveler._id}`)); }}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-stone-600 bg-stone-100 border border-stone-200 active:scale-95 transition-all whitespace-nowrap">
+                      <MessageCircle size={11} /> Chat
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShowDetail(true); }}
+                      className="flex items-center gap-0.5 px-2.5 py-1.5 rounded-xl font-bold text-[11px] text-white active:scale-95 transition-all whitespace-nowrap"
+                      style={{ background: 'linear-gradient(135deg,#f97316,#ea580c)', boxShadow: '0 2px 6px rgba(249,115,22,0.3)' }}>
+                      View →
+                    </button>
+                  </div>
                 )}
               </div>
             ) : (
-              <span className="text-xs text-stone-400 font-medium">Your trip</span>
+              /* ── Owner: show management actions inline ── */
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs text-stone-400 font-medium flex-1">Your trip</span>
+                {onMarkFull && !isPast && (
+                  <button onClick={(e) => { e.stopPropagation(); onMarkFull(); }}
+                    className="bg-emerald-50 border border-emerald-200 rounded-xl px-2 py-1 flex items-center gap-1 text-[10px] font-bold text-emerald-700 active:scale-95 transition-all">
+                    ✓ Full
+                  </button>
+                )}
+                {onEdit && !isPast && (
+                  <button onClick={(e) => { e.stopPropagation(); onEdit(); }}
+                    className="bg-stone-50 border border-stone-200 rounded-xl px-2 py-1 flex items-center gap-1 text-[10px] font-bold text-stone-600 active:scale-95 transition-all">
+                    <Edit2 size={10} /> Edit
+                  </button>
+                )}
+                {showDelete && !isPast && (
+                  <button onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                    className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center text-red-400 active:scale-95 transition-all">
+                    <Trash2 size={12} />
+                  </button>
+                )}
+              </div>
             )}
-
-            <div className="flex items-center gap-1.5 shrink-0">
-              {/* Mark Full — traveller signals no more space, trip moves to history */}
-              {onMarkFull && isOwn && !isPast && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onMarkFull(); }}
-                  title="Mark parcel space as full — removes from public listing"
-                  className="bg-emerald-50 border border-emerald-200 rounded-xl px-2.5 py-1.5 flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors"
-                >
-                  ✓ Mark Full
-                </button>
-              )}
-              {onEdit && !isPast && (
-                <button onClick={(e) => { e.stopPropagation(); onEdit(); }}
-                  className="bg-stone-50 border border-stone-200 rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-xs font-semibold text-stone-600 hover:bg-stone-100 transition-colors">
-                  <Edit2 size={12} /> Edit
-                </button>
-              )}
-              {showDelete && !isPast && (
-                <button onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                  className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center text-red-400 hover:bg-red-100 transition-colors">
-                  <Trash2 size={13} />
-                </button>
-              )}
-              {!isOwn && !isPast && (
-                <button onClick={(e) => { e.stopPropagation(); authGate(() => navigate(`/chat/${traveler._id}`)); }}
-                  className="btn-primary py-1.5 px-3 text-xs flex items-center gap-1">
-                  <MessageCircle size={11} /> Chat
-                </button>
-              )}
-            </div>
           </div>
         )}
       </div>

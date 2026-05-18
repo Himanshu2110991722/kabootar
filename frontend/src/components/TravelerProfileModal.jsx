@@ -67,13 +67,33 @@ export default function TravelerProfileModal({ travelerId, travelerSnap, onClose
             <>
               {/* Avatar + name */}
               <div className="flex flex-col items-center gap-2">
-                <div className="w-20 h-20 rounded-full overflow-hidden bg-orange-50 border-2 border-orange-100 flex items-center justify-center text-2xl font-bold text-orange-500">
-                  {data?.profileImage
-                    ? <img src={data.profileImage} alt={data.name} className="w-full h-full object-cover" />
-                    : initials}
+                {/* Avatar with verified badge */}
+                <div className="relative">
+                  <div className={`w-20 h-20 rounded-full overflow-hidden flex items-center justify-center text-2xl font-bold text-orange-500 border-4 ${
+                    data?.kycStatus === 'verified' ? 'border-blue-400 bg-blue-50' : 'border-orange-100 bg-orange-50'
+                  }`}>
+                    {data?.profileImage
+                      ? <img src={data.profileImage} alt={data.name} className="w-full h-full object-cover" />
+                      : initials}
+                  </div>
+                  {/* Blue verified tick */}
+                  {data?.kycStatus === 'verified' && (
+                    <div className="absolute bottom-0.5 right-0.5 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white shadow-md">
+                      <svg viewBox="0 0 10 8" width="10" height="8" fill="none">
+                        <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </div>
+                  )}
                 </div>
                 <div className="text-center">
-                  <h3 className="font-bold text-stone-900 text-lg">{data?.name}</h3>
+                  <div className="flex items-center justify-center gap-2">
+                    <h3 className="font-bold text-stone-900 text-lg">{data?.name}</h3>
+                    {data?.kycStatus === 'verified' && (
+                      <span className="text-[10px] font-black text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                        ✓ Verified
+                      </span>
+                    )}
+                  </div>
                   {data?.createdAt && (
                     <p className="text-xs text-stone-400">
                       Member since {format(new Date(data.createdAt), 'MMM yyyy')}
